@@ -4,7 +4,7 @@ import os
 import sys
 
 # The key provided by the user (default)
-DEFAULT_KEY = "0a1NU1Exp9EGpMso1bt8xc7rfmLuOfW9"
+DEFAULT_KEY = "zltg-8c50a30c5d0a7e6f72ff87d7fec5c26adc261043"
 TEBEX_API_KEY = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_KEY
 TEBEX_BASE_URL = "https://plugin.tebex.io"
 
