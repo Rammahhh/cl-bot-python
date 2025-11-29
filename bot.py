@@ -348,8 +348,8 @@ class ApplicationModal(discord.ui.Modal, title="Server Application"):
         self.ign = discord.ui.TextInput(label="Minecraft IGN", placeholder="Your in-game name", max_length=32)
         self.age = discord.ui.TextInput(label="Age", placeholder="18", required=False, max_length=3)
         self.timezone = discord.ui.TextInput(label="Timezone", placeholder="e.g. UTC, EST", required=False, max_length=32)
-        self.reason = discord.ui.TextInput(label="Why do you want to join?", style=discord.TextStyle.paragraph, max_length=500)
-        self.experience = discord.ui.TextInput(label="Relevant experience", style=discord.TextStyle.paragraph, required=False, max_length=500)
+        self.reason = discord.ui.TextInput(label="Why should we accept you? (2 sentences)", style=discord.TextStyle.paragraph, max_length=500)
+        self.experience = discord.ui.TextInput(label="What do you bring to the team?", style=discord.TextStyle.paragraph, required=False, max_length=500)
         for input_field in (self.ign, self.age, self.timezone, self.reason, self.experience):
             self.add_item(input_field)
 
@@ -364,9 +364,9 @@ class ApplicationModal(discord.ui.Modal, title="Server Application"):
             embed.add_field(name="Age", value=self.age.value, inline=True)
         if self.timezone.value:
             embed.add_field(name="Timezone", value=self.timezone.value, inline=True)
-        embed.add_field(name="Reason", value=self.reason.value or "N/A", inline=False)
+        embed.add_field(name="Why should we accept you?", value=self.reason.value or "N/A", inline=False)
         if self.experience.value:
-            embed.add_field(name="Experience", value=self.experience.value, inline=False)
+            embed.add_field(name="What do you bring to the team?", value=self.experience.value, inline=False)
         embed.set_author(
             name=f"{interaction.user} ({interaction.user.id})",
             icon_url=getattr(interaction.user.display_avatar, "url", None),
