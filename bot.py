@@ -217,16 +217,118 @@ def format_summary(mod_name: str, files: List[Dict[str, Any]], max_items: int = 
                 ui.Button(style=discord.ButtonStyle.link, label=display_name[:80], url=url)
             )
 
-    if not items:
         return embed, view
 
     return embed, view
 
 
+# Role Configuration
+ROLE_HELPER = 1442244395431628831
+ROLE_STAFF = 1442244395431628830
+
+SERVER_ROLES = {
+    "Infinity Evolved": 1442244395360456750,
+    "NomiFactory CEu": 1442244395343544455,
+    "All the mods 10": 1442244395327033461,
+    "Stoneblock 4": 1442244395327033460,
+    "Skyfactory 2.5": 1442244395360456747,
+    "GregTech New Horizon": 1442244395360456751,
+}
+
+class DeclineModal(discord.ui.Modal, title="Decline Application"):
+    def __init__(self, applicant: discord.Member, original_message: discord.Message):
+        super().__init__()
+        self.applicant = applicant
+        self.original_message = original_message
+        self.reason = discord.ui.TextInput(label="Reason for Rejection", style=discord.TextStyle.paragraph, max_length=500)
+        self.add_item(self.reason)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        # Update Embed
+        embed = self.original_message.embeds[0]
+        embed.color = 0xE74C3C  # Red
+        embed.add_field(name="Status", value=f"Declined by {interaction.user.mention}\nReason: {self.reason.value}", inline=False)
+        
+        await self.original_message.edit(embed=embed, view=None)
+        
+        # DM User
+        try:
+            await self.applicant.send(f"Your staff application has been **declined**.\nReason: {self.reason.value}")
+        except discord.Forbidden:
+            pass # Can't DM user
+            
+        await interaction.response.send_message("Application declined.", ephemeral=True)
+
+
+class ApplicationReviewView(discord.ui.View):
+    def __init__(self, applicant_id: int, server_name: str):
+        super().__init__(timeout=None)
+        self.applicant_id = applicant_id
+        self.server_name = server_name
+
+    @discord.ui.button(label="Accept", style=discord.ButtonStyle.success, custom_id="app_accept")
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        guild = interaction.guild
+        member = guild.get_member(self.applicant_id)
+        
+        if not member:
+            await interaction.response.send_message("Applicant is no longer in the server.", ephemeral=True)
+            return
+
+        # Assign Roles
+        roles_to_add = [ROLE_HELPER, ROLE_STAFF]
+        server_role_id = SERVER_ROLES.get(self.server_name)
+        if server_role_id:
+            roles_to_add.append(server_role_id)
+            
+        roles = [guild.get_role(rid) for rid in roles_to_add if guild.get_role(rid)]
+        
+        try:
+            await member.add_roles(*roles)
+        except discord.Forbidden:
+            await interaction.response.send_message("I do not have permission to assign these roles. Please check my role hierarchy.", ephemeral=True)
+            return
+        except Exception as e:
+            logging.error(f"Failed to assign roles: {e}")
+            await interaction.response.send_message(f"Failed to assign roles: {e}", ephemeral=True)
+            return
+
+        # Update Embed
+        embed = interaction.message.embeds[0]
+        embed.color = 0x2ECC71  # Green
+        embed.add_field(name="Status", value=f"Accepted by {interaction.user.mention}", inline=False)
+        
+        await interaction.message.edit(embed=embed, view=None)
+        
+        # DM User
+        try:
+            await member.send(f"Congratulations! Your staff application for **{self.server_name}** has been **ACCEPTED**!")
+        except discord.Forbidden:
+            pass
+
+        await interaction.response.send_message("Application accepted and roles assigned.", ephemeral=True)
+
+    @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, custom_id="app_decline")
+    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        guild = interaction.guild
+        member = guild.get_member(self.applicant_id)
+        if not member:
+             # Even if member left, we might want to just mark it declined locally
+             embed = interaction.message.embeds[0]
+             embed.color = 0xE74C3C
+             embed.add_field(name="Status", value=f"Declined by {interaction.user.mention} (User left server)", inline=False)
+             await interaction.message.edit(embed=embed, view=None)
+             await interaction.response.send_message("Application declined (User not found).", ephemeral=True)
+             return
+
+        await interaction.response.send_modal(DeclineModal(member, interaction.message))
+
+
 class ApplicationModal(discord.ui.Modal, title="Server Application"):
-    def __init__(self, channel_id: Optional[int]):
+    def __init__(self, channel_id: Optional[int], server_name: str):
         super().__init__()
         self.channel_id = channel_id
+        self.server_name = server_name
         self.ign = discord.ui.TextInput(label="Minecraft IGN", placeholder="Your in-game name", max_length=32)
         self.age = discord.ui.TextInput(label="Age", placeholder="18", required=False, max_length=3)
         self.timezone = discord.ui.TextInput(label="Timezone", placeholder="e.g. UTC, EST", required=False, max_length=32)
@@ -237,7 +339,7 @@ class ApplicationModal(discord.ui.Modal, title="Server Application"):
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         embed = discord.Embed(
-            title="New Application",
+            title=f"New Application - {self.server_name}",
             color=0x9B59B6,
             timestamp=datetime.now(timezone.utc),
         )
@@ -263,14 +365,31 @@ class ApplicationModal(discord.ui.Modal, title="Server Application"):
 
         try:
             channel = interaction.client.get_channel(self.channel_id) or await interaction.client.fetch_channel(self.channel_id)
-            await channel.send(embed=embed)
-            await interaction.response.send_message("Application submitted!f", ephemeral=True)
+            view = ApplicationReviewView(interaction.user.id, self.server_name)
+            await channel.send(embed=embed, view=view)
+            await interaction.response.send_message("Application submitted!", ephemeral=True)
         except Exception as exc:  # noqa: BLE001
             logging.error("Failed to send application embed: %s", exc)
             await interaction.response.send_message(
                 "Could not deliver application. Please try again later.",
                 ephemeral=True,
             )
+
+class ServerSelectionSelect(discord.ui.Select):
+    def __init__(self, channel_id: Optional[int]):
+        options = [discord.SelectOption(label=name) for name in SERVER_ROLES.keys()]
+        super().__init__(placeholder="Select the server you wish to apply for...", min_values=1, max_values=1, options=options)
+        self.channel_id = channel_id
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        server_name = self.values[0]
+        modal = ApplicationModal(self.channel_id, server_name)
+        await interaction.response.send_modal(modal)
+
+class ServerSelectionView(discord.ui.View):
+    def __init__(self, channel_id: Optional[int]):
+        super().__init__()
+        self.add_item(ServerSelectionSelect(channel_id))
 
 
 def parse_time(value: Optional[str]) -> Optional[datetime]:
@@ -526,8 +645,8 @@ def main() -> None:
 
     @tree.command(name="application", description="Open the staff application form.")
     async def application(interaction: discord.Interaction) -> None:
-        modal = ApplicationModal(application_channel_id)
-        await interaction.response.send_modal(modal)
+        view = ServerSelectionView(application_channel_id)
+        await interaction.response.send_message("Please select the server you are applying for:", view=view, ephemeral=True)
 
     # Tebex Integration
     TEBEX_KEYS = {
