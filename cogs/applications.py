@@ -1,5 +1,7 @@
 import logging
 import discord
+import traceback
+import sys
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timezone
@@ -16,6 +18,7 @@ class DeclineModal(discord.ui.Modal, title="Decline Application"):
         self.add_item(self.reason)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
+        print(f"DEBUG: DeclineModal.on_submit called by {interaction.user}")
         try:
             # Update Embed
             embed = self.original_message.embeds[0]
@@ -33,8 +36,15 @@ class DeclineModal(discord.ui.Modal, title="Decline Application"):
                 
             await interaction.response.send_message("Application declined.", ephemeral=True)
         except Exception as e:
+            print(f"ERROR in DeclineModal.on_submit: {e}")
+            traceback.print_exc()
             logging.exception("Error in DeclineModal.on_submit")
             await interaction.response.send_message("An error occurred while processing the decline.", ephemeral=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        print(f"FATAL ERROR in DeclineModal: {error}")
+        traceback.print_exc()
+        await interaction.response.send_message("Oops! Something went wrong.", ephemeral=True)
 
 
 class ApplicationReviewView(discord.ui.View):
@@ -57,6 +67,7 @@ class ApplicationReviewView(discord.ui.View):
 
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.success, custom_id="app_accept")
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        print(f"DEBUG: ApplicationReviewView.accept called by {interaction.user}")
         try:
             guild = interaction.guild
             logging.info(f"Attempting to accept application for User ID: {self.applicant_id} in Guild: {guild.name} ({guild.id})")
@@ -112,11 +123,14 @@ class ApplicationReviewView(discord.ui.View):
 
             await interaction.response.send_message("Application accepted and roles assigned.", ephemeral=True)
         except Exception as e:
+            print(f"ERROR in ApplicationReviewView.accept: {e}")
+            traceback.print_exc()
             logging.exception("Error in ApplicationReviewView.accept")
             await interaction.response.send_message("An unexpected error occurred.", ephemeral=True)
 
     @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, custom_id="app_decline")
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        print(f"DEBUG: ApplicationReviewView.decline called by {interaction.user}")
         try:
             guild = interaction.guild
             member = guild.get_member(self.applicant_id)
@@ -138,6 +152,8 @@ class ApplicationReviewView(discord.ui.View):
 
             await interaction.response.send_modal(DeclineModal(member, interaction.message))
         except Exception as e:
+            print(f"ERROR in ApplicationReviewView.decline: {e}")
+            traceback.print_exc()
             logging.exception("Error in ApplicationReviewView.decline")
             await interaction.response.send_message("An unexpected error occurred.", ephemeral=True)
 
@@ -156,6 +172,7 @@ class ApplicationModalPart2(discord.ui.Modal, title="Server Application (Part 2/
         self.add_item(self.plugin_knowledge)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
+        print(f"DEBUG: ApplicationModalPart2.on_submit called by {interaction.user}")
         logging.info(f"Submitting Part 2 for user {interaction.user.id}")
         try:
             embed = discord.Embed(
@@ -201,14 +218,23 @@ class ApplicationModalPart2(discord.ui.Modal, title="Server Application (Part 2/
                 await interaction.response.send_message("Application submitted successfully!", ephemeral=True)
                 logging.info(f"Application submitted for {interaction.user.id} in channel {self.channel_id}")
             except Exception as exc:  # noqa: BLE001
+                print(f"ERROR sending embed: {exc}")
+                traceback.print_exc()
                 logging.error("Failed to send application embed: %s", exc)
                 await interaction.response.send_message(
                     "Could not deliver application. Please try again later.",
                     ephemeral=True,
                 )
         except Exception as e:
+            print(f"ERROR in ApplicationModalPart2.on_submit: {e}")
+            traceback.print_exc()
             logging.exception("Error in ApplicationModalPart2.on_submit")
             await interaction.response.send_message("An error occurred submitting the application.", ephemeral=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        print(f"FATAL ERROR in ApplicationModalPart2: {error}")
+        traceback.print_exc()
+        await interaction.response.send_message("Oops! Something went wrong.", ephemeral=True)
 
 
 class ContinueApplicationView(discord.ui.View):
@@ -220,11 +246,14 @@ class ContinueApplicationView(discord.ui.View):
 
     @discord.ui.button(label="Continue to Part 2", style=discord.ButtonStyle.primary)
     async def continue_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        print(f"DEBUG: ContinueApplicationView.continue_button called by {interaction.user}")
         try:
             await interaction.response.send_modal(
                 ApplicationModalPart2(self.part1_data, self.channel_id, self.server_name)
             )
         except Exception as e:
+            print(f"ERROR in ContinueApplicationView.continue_button: {e}")
+            traceback.print_exc()
             logging.exception("Error in ContinueApplicationView.continue_button")
             await interaction.response.send_message("Failed to open the next step. Please try again.", ephemeral=True)
 
@@ -243,6 +272,7 @@ class ApplicationModal(discord.ui.Modal, title="Server Application (Part 1/2)"):
             self.add_item(input_field)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
+        print(f"DEBUG: ApplicationModal.on_submit called by {interaction.user}")
         logging.info(f"Submitting Part 1 for user {interaction.user.id}")
         try:
             part1_data = {
@@ -260,8 +290,15 @@ class ApplicationModal(discord.ui.Modal, title="Server Application (Part 1/2)"):
                 ephemeral=True
             )
         except Exception as e:
+            print(f"ERROR in ApplicationModal.on_submit: {e}")
+            traceback.print_exc()
             logging.exception("Error in ApplicationModal.on_submit")
             await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        print(f"FATAL ERROR in ApplicationModal: {error}")
+        traceback.print_exc()
+        await interaction.response.send_message("Oops! Something went wrong.", ephemeral=True)
 
 class ServerSelectionSelect(discord.ui.Select):
     def __init__(self, channel_id: Optional[int]):
@@ -270,12 +307,15 @@ class ServerSelectionSelect(discord.ui.Select):
         self.channel_id = channel_id
 
     async def callback(self, interaction: discord.Interaction) -> None:
+        print(f"DEBUG: ServerSelectionSelect.callback called by {interaction.user}")
         try:
             server_name = self.values[0]
             logging.info(f"User {interaction.user.id} selected server {server_name}")
             modal = ApplicationModal(self.channel_id, server_name)
             await interaction.response.send_modal(modal)
         except Exception as e:
+            print(f"ERROR in ServerSelectionSelect.callback: {e}")
+            traceback.print_exc()
             logging.exception("Error in ServerSelectionSelect.callback")
             await interaction.response.send_message("Failed to open application form.", ephemeral=True)
 
