@@ -3,10 +3,9 @@ import base64
 import urllib.request
 import json
 
-# Credentials provided by user
-PROJECT_ID = "1661236"
-PRIVATE_KEY = "0a1NU1Exp9EGpMso1bt8xc7rfmLuOfW9"
-PUBLIC_TOKEN = "e0f99f3572b07712ea7fe5dedd244f2daee4310a"
+# The key provided by the user (default)
+DEFAULT_KEY = "70e1713be7f71470e2be2bde46c26e801b5b72ef"
+TEBEX_API_KEY = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_KEY
 
 def debug_request(url, headers, method="GET", data=None):
     print(f"Requesting: {method} {url}")

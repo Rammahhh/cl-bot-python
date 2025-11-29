@@ -530,7 +530,7 @@ def main() -> None:
         await interaction.response.send_modal(modal)
 
     # Tebex Integration
-    TEBEX_API_KEY = os.getenv("TEBEX_API_KEY", "0a1NU1Exp9EGpMso1bt8xc7rfmLuOfW9")
+    TEBEX_API_KEY = os.getenv("TEBEX_API_KEY", "70e1713be7f71470e2be2bde46c26e801b5b72ef")
     TEBEX_BASE_URL = "https://plugin.tebex.io"
 
     def tebex_request(method: str, endpoint: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
