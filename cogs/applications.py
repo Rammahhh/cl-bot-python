@@ -5,7 +5,7 @@ from discord.ext import commands
 from datetime import datetime, timezone
 from typing import Optional, Dict
 
-from config import ROLE_HELPER, ROLE_STAFF, SERVER_ROLES
+from config import ROLE_HELPER, ROLE_STAFF, ROLE_ADMIN, SERVER_ROLES
 
 class DeclineModal(discord.ui.Modal, title="Decline Application"):
     def __init__(self, applicant: discord.Member, original_message: discord.Message):
@@ -16,20 +16,25 @@ class DeclineModal(discord.ui.Modal, title="Decline Application"):
         self.add_item(self.reason)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        # Update Embed
-        embed = self.original_message.embeds[0]
-        embed.color = 0xE74C3C  # Red
-        embed.add_field(name="Status", value=f"Declined by {interaction.user.mention}\nReason: {self.reason.value}", inline=False)
-        
-        await self.original_message.edit(embed=embed, view=None)
-        
-        # DM User
         try:
-            await self.applicant.send(f"Your staff application has been **declined**.\nReason: {self.reason.value}")
-        except discord.Forbidden:
-            pass # Can't DM user
+            # Update Embed
+            embed = self.original_message.embeds[0]
+            embed.color = 0xE74C3C  # Red
+            embed.add_field(name="Status", value=f"Declined by {interaction.user.mention}\nReason: {self.reason.value}", inline=False)
             
-        await interaction.response.send_message("Application declined.", ephemeral=True)
+            await self.original_message.edit(embed=embed, view=None)
+            
+            # DM User
+            try:
+                await self.applicant.send(f"Your staff application has been **declined**.\nReason: {self.reason.value}")
+            except discord.Forbidden:
+                logging.warning(f"Could not DM user {self.applicant.id} (Forbidden)")
+                pass # Can't DM user
+                
+            await interaction.response.send_message("Application declined.", ephemeral=True)
+        except Exception as e:
+            logging.exception("Error in DeclineModal.on_submit")
+            await interaction.response.send_message("An error occurred while processing the decline.", ephemeral=True)
 
 
 class ApplicationReviewView(discord.ui.View):
@@ -38,78 +43,103 @@ class ApplicationReviewView(discord.ui.View):
         self.applicant_id = applicant_id
         self.server_name = server_name
 
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+            return False
+            
+        has_role = any(role.id == ROLE_ADMIN for role in interaction.user.roles)
+        if not has_role:
+            await interaction.response.send_message("You do not have permission to review applications.", ephemeral=True)
+            logging.warning(f"User {interaction.user} (ID: {interaction.user.id}) tried to review application but lacks admin role.")
+            return False
+        return True
+
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.success, custom_id="app_accept")
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        guild = interaction.guild
-        logging.info(f"Attempting to accept application for User ID: {self.applicant_id} in Guild: {guild.name} ({guild.id})")
-        
-        member = guild.get_member(self.applicant_id)
-        if not member:
-            logging.warning(f"User {self.applicant_id} not found in cache. Fetching...")
-            try:
-                member = await guild.fetch_member(self.applicant_id)
-                logging.info(f"User {self.applicant_id} successfully fetched from API.")
-            except discord.NotFound:
-                logging.error(f"User {self.applicant_id} NOT FOUND via API.")
-                await interaction.response.send_message(f"Error: User {self.applicant_id} not found in server.", ephemeral=True)
-                return
-            except discord.HTTPException as e:
-                logging.error(f"HTTP Exception fetching user {self.applicant_id}: {e}")
-                await interaction.response.send_message(f"Failed to fetch member: {e}", ephemeral=True)
-                return
-
-        # Assign Roles
-        roles_to_add = [ROLE_HELPER, ROLE_STAFF]
-        server_role_id = SERVER_ROLES.get(self.server_name)
-        if server_role_id:
-            roles_to_add.append(server_role_id)
+        try:
+            guild = interaction.guild
+            logging.info(f"Attempting to accept application for User ID: {self.applicant_id} in Guild: {guild.name} ({guild.id})")
             
-        roles = [guild.get_role(rid) for rid in roles_to_add if guild.get_role(rid)]
-        
-        try:
-            await member.add_roles(*roles)
-        except discord.Forbidden:
-            await interaction.response.send_message("I do not have permission to assign these roles. Please check my role hierarchy.", ephemeral=True)
-            return
+            member = guild.get_member(self.applicant_id)
+            if not member:
+                logging.warning(f"User {self.applicant_id} not found in cache. Fetching...")
+                try:
+                    member = await guild.fetch_member(self.applicant_id)
+                    logging.info(f"User {self.applicant_id} successfully fetched from API.")
+                except discord.NotFound:
+                    logging.error(f"User {self.applicant_id} NOT FOUND via API.")
+                    await interaction.response.send_message(f"Error: User {self.applicant_id} not found in server.", ephemeral=True)
+                    return
+                except discord.HTTPException as e:
+                    logging.error(f"HTTP Exception fetching user {self.applicant_id}: {e}")
+                    await interaction.response.send_message(f"Failed to fetch member: {e}", ephemeral=True)
+                    return
+
+            # Assign Roles
+            roles_to_add = [ROLE_HELPER, ROLE_STAFF]
+            server_role_id = SERVER_ROLES.get(self.server_name)
+            if server_role_id:
+                roles_to_add.append(server_role_id)
+                
+            roles = [guild.get_role(rid) for rid in roles_to_add if guild.get_role(rid)]
+            
+            try:
+                await member.add_roles(*roles)
+                logging.info(f"Assigned roles to {member.display_name}")
+            except discord.Forbidden:
+                logging.error("Missing permissions to assign roles.")
+                await interaction.response.send_message("I do not have permission to assign these roles. Please check my role hierarchy.", ephemeral=True)
+                return
+            except Exception as e:
+                logging.error(f"Failed to assign roles: {e}")
+                await interaction.response.send_message(f"Failed to assign roles: {e}", ephemeral=True)
+                return
+
+            # Update Embed
+            embed = interaction.message.embeds[0]
+            embed.color = 0x2ECC71  # Green
+            embed.add_field(name="Status", value=f"Accepted by {interaction.user.mention}", inline=False)
+            
+            await interaction.message.edit(embed=embed, view=None)
+            
+            # DM User
+            try:
+                await member.send(f"Congratulations! Your staff application for **{self.server_name}** has been **ACCEPTED**!")
+            except discord.Forbidden:
+                logging.warning(f"Could not DM user {member.id} (Forbidden)")
+                pass
+
+            await interaction.response.send_message("Application accepted and roles assigned.", ephemeral=True)
         except Exception as e:
-            logging.error(f"Failed to assign roles: {e}")
-            await interaction.response.send_message(f"Failed to assign roles: {e}", ephemeral=True)
-            return
-
-        # Update Embed
-        embed = interaction.message.embeds[0]
-        embed.color = 0x2ECC71  # Green
-        embed.add_field(name="Status", value=f"Accepted by {interaction.user.mention}", inline=False)
-        
-        await interaction.message.edit(embed=embed, view=None)
-        
-        # DM User
-        try:
-            await member.send(f"Congratulations! Your staff application for **{self.server_name}** has been **ACCEPTED**!")
-        except discord.Forbidden:
-            pass
-
-        await interaction.response.send_message("Application accepted and roles assigned.", ephemeral=True)
+            logging.exception("Error in ApplicationReviewView.accept")
+            await interaction.response.send_message("An unexpected error occurred.", ephemeral=True)
 
     @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, custom_id="app_decline")
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        guild = interaction.guild
-        member = guild.get_member(self.applicant_id)
-        if not member:
-            try:
-                member = await guild.fetch_member(self.applicant_id)
-            except discord.NotFound:
-                 # Even if member left, we might want to just mark it declined locally
-                 embed = interaction.message.embeds[0]
-                 embed.color = 0xE74C3C
-                 embed.add_field(name="Status", value=f"Declined by {interaction.user.mention} (User left server)", inline=False)
-                 await interaction.message.edit(embed=embed, view=None)
-                 await interaction.response.send_message("Application declined (User not found).", ephemeral=True)
-                 return
-            except Exception:
-                 pass
+        try:
+            guild = interaction.guild
+            member = guild.get_member(self.applicant_id)
+            if not member:
+                try:
+                    member = await guild.fetch_member(self.applicant_id)
+                except discord.NotFound:
+                     # Even if member left, we might want to just mark it declined locally
+                     logging.info(f"Declining application for user {self.applicant_id} who left the server.")
+                     embed = interaction.message.embeds[0]
+                     embed.color = 0xE74C3C
+                     embed.add_field(name="Status", value=f"Declined by {interaction.user.mention} (User left server)", inline=False)
+                     await interaction.message.edit(embed=embed, view=None)
+                     await interaction.response.send_message("Application declined (User not found).", ephemeral=True)
+                     return
+                except Exception as e:
+                     logging.error(f"Error fetching member for decline: {e}")
+                     pass
 
-        await interaction.response.send_modal(DeclineModal(member, interaction.message))
+            await interaction.response.send_modal(DeclineModal(member, interaction.message))
+        except Exception as e:
+            logging.exception("Error in ApplicationReviewView.decline")
+            await interaction.response.send_message("An unexpected error occurred.", ephemeral=True)
 
 
 class ApplicationModalPart2(discord.ui.Modal, title="Server Application (Part 2/2)"):
@@ -126,52 +156,59 @@ class ApplicationModalPart2(discord.ui.Modal, title="Server Application (Part 2/
         self.add_item(self.plugin_knowledge)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        embed = discord.Embed(
-            title=f"New Application - {self.server_name}",
-            color=0x9B59B6,
-            timestamp=datetime.now(timezone.utc),
-        )
-        
-        # Part 1 Fields
-        embed.add_field(name="IGN", value=self.part1_data.get("ign", "N/A"), inline=True)
-        if self.part1_data.get("age"):
-            embed.add_field(name="Age", value=self.part1_data["age"], inline=True)
-        if self.part1_data.get("timezone"):
-            embed.add_field(name="Timezone", value=self.part1_data["timezone"], inline=True)
-        
-        embed.add_field(name="Why should we accept you?", value=self.part1_data.get("reason", "N/A"), inline=False)
-        if self.part1_data.get("experience"):
-            embed.add_field(name="What do you bring to the team?", value=self.part1_data["experience"], inline=False)
-            
-        # Part 2 Fields
-        if self.past_experience.value:
-            embed.add_field(name="Past experiences", value=self.past_experience.value, inline=False)
-        if self.plugin_knowledge.value:
-            embed.add_field(name="Plugin Knowledge", value=self.plugin_knowledge.value, inline=False)
-
-        embed.set_author(
-            name=f"{interaction.user} ({interaction.user.id})",
-            icon_url=getattr(interaction.user.display_avatar, "url", None),
-        )
-
-        if not self.channel_id:
-            await interaction.response.send_message(
-                "Thanks! However, no application channel is configured—please notify an admin.",
-                ephemeral=True,
-            )
-            return
-
+        logging.info(f"Submitting Part 2 for user {interaction.user.id}")
         try:
-            channel = interaction.client.get_channel(self.channel_id) or await interaction.client.fetch_channel(self.channel_id)
-            view = ApplicationReviewView(interaction.user.id, self.server_name)
-            await channel.send(embed=embed, view=view)
-            await interaction.response.send_message("Application submitted successfully!", ephemeral=True)
-        except Exception as exc:  # noqa: BLE001
-            logging.error("Failed to send application embed: %s", exc)
-            await interaction.response.send_message(
-                "Could not deliver application. Please try again later.",
-                ephemeral=True,
+            embed = discord.Embed(
+                title=f"New Application - {self.server_name}",
+                color=0x9B59B6,
+                timestamp=datetime.now(timezone.utc),
             )
+            
+            # Part 1 Fields
+            embed.add_field(name="IGN", value=self.part1_data.get("ign", "N/A"), inline=True)
+            if self.part1_data.get("age"):
+                embed.add_field(name="Age", value=self.part1_data["age"], inline=True)
+            if self.part1_data.get("timezone"):
+                embed.add_field(name="Timezone", value=self.part1_data["timezone"], inline=True)
+            
+            embed.add_field(name="Why should we accept you?", value=self.part1_data.get("reason", "N/A"), inline=False)
+            if self.part1_data.get("experience"):
+                embed.add_field(name="What do you bring to the team?", value=self.part1_data["experience"], inline=False)
+                
+            # Part 2 Fields
+            if self.past_experience.value:
+                embed.add_field(name="Past experiences", value=self.past_experience.value, inline=False)
+            if self.plugin_knowledge.value:
+                embed.add_field(name="Plugin Knowledge", value=self.plugin_knowledge.value, inline=False)
+
+            embed.set_author(
+                name=f"{interaction.user} ({interaction.user.id})",
+                icon_url=getattr(interaction.user.display_avatar, "url", None),
+            )
+
+            if not self.channel_id:
+                logging.error("Application channel ID is missing.")
+                await interaction.response.send_message(
+                    "Thanks! However, no application channel is configured—please notify an admin.",
+                    ephemeral=True,
+                )
+                return
+
+            try:
+                channel = interaction.client.get_channel(self.channel_id) or await interaction.client.fetch_channel(self.channel_id)
+                view = ApplicationReviewView(interaction.user.id, self.server_name)
+                await channel.send(embed=embed, view=view)
+                await interaction.response.send_message("Application submitted successfully!", ephemeral=True)
+                logging.info(f"Application submitted for {interaction.user.id} in channel {self.channel_id}")
+            except Exception as exc:  # noqa: BLE001
+                logging.error("Failed to send application embed: %s", exc)
+                await interaction.response.send_message(
+                    "Could not deliver application. Please try again later.",
+                    ephemeral=True,
+                )
+        except Exception as e:
+            logging.exception("Error in ApplicationModalPart2.on_submit")
+            await interaction.response.send_message("An error occurred submitting the application.", ephemeral=True)
 
 
 class ContinueApplicationView(discord.ui.View):
@@ -183,9 +220,13 @@ class ContinueApplicationView(discord.ui.View):
 
     @discord.ui.button(label="Continue to Part 2", style=discord.ButtonStyle.primary)
     async def continue_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        await interaction.response.send_modal(
-            ApplicationModalPart2(self.part1_data, self.channel_id, self.server_name)
-        )
+        try:
+            await interaction.response.send_modal(
+                ApplicationModalPart2(self.part1_data, self.channel_id, self.server_name)
+            )
+        except Exception as e:
+            logging.exception("Error in ContinueApplicationView.continue_button")
+            await interaction.response.send_message("Failed to open the next step. Please try again.", ephemeral=True)
 
 
 class ApplicationModal(discord.ui.Modal, title="Server Application (Part 1/2)"):
@@ -202,20 +243,25 @@ class ApplicationModal(discord.ui.Modal, title="Server Application (Part 1/2)"):
             self.add_item(input_field)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        part1_data = {
-            "ign": self.ign.value,
-            "age": self.age.value,
-            "timezone": self.timezone.value,
-            "reason": self.reason.value,
-            "experience": self.experience.value
-        }
-        
-        view = ContinueApplicationView(part1_data, self.channel_id, self.server_name)
-        await interaction.response.send_message(
-            "Part 1 received! Please click the button below to complete the final step.",
-            view=view,
-            ephemeral=True
-        )
+        logging.info(f"Submitting Part 1 for user {interaction.user.id}")
+        try:
+            part1_data = {
+                "ign": self.ign.value,
+                "age": self.age.value,
+                "timezone": self.timezone.value,
+                "reason": self.reason.value,
+                "experience": self.experience.value
+            }
+            
+            view = ContinueApplicationView(part1_data, self.channel_id, self.server_name)
+            await interaction.response.send_message(
+                "Part 1 received! Please click the button below to complete the final step.",
+                view=view,
+                ephemeral=True
+            )
+        except Exception as e:
+            logging.exception("Error in ApplicationModal.on_submit")
+            await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
 
 class ServerSelectionSelect(discord.ui.Select):
     def __init__(self, channel_id: Optional[int]):
@@ -224,9 +270,14 @@ class ServerSelectionSelect(discord.ui.Select):
         self.channel_id = channel_id
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        server_name = self.values[0]
-        modal = ApplicationModal(self.channel_id, server_name)
-        await interaction.response.send_modal(modal)
+        try:
+            server_name = self.values[0]
+            logging.info(f"User {interaction.user.id} selected server {server_name}")
+            modal = ApplicationModal(self.channel_id, server_name)
+            await interaction.response.send_modal(modal)
+        except Exception as e:
+            logging.exception("Error in ServerSelectionSelect.callback")
+            await interaction.response.send_message("Failed to open application form.", ephemeral=True)
 
 class ServerSelectionView(discord.ui.View):
     def __init__(self, channel_id: Optional[int]):
