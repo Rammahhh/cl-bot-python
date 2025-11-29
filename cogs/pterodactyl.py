@@ -17,7 +17,7 @@ class Pterodactyl(commands.Cog):
         self.ptero_app_key = os.getenv("PTERO_APPLICATION_API_KEY")
         self.ptero_client_key = os.getenv("PTERO_CLIENT_API_KEY")
         self.ptero_server_identifiers = env_list("PTERO_SERVER_IDENTIFIERS")
-        ptero_channel_id_raw = os.getenv("PTERO_ACTIVITY_CHANNEL_ID", "1444078030417952900")
+        ptero_channel_id_raw = os.getenv("PTERO_ACTIVITY_CHANNEL_ID", "1444399741998862597")
         self.ptero_poll_seconds = int(os.getenv("PTERO_POLL_SECONDS", "30"))
         
         try:
