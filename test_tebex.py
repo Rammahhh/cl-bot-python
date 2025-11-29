@@ -24,7 +24,7 @@ def tebex_request(method, endpoint, data=None):
         print(f"Error: {e}")
         return None
 
-print("Testing Tebex API Connection...")
+print("Testing Tebex API Connection....")
 # Try to list gift cards to verify auth
 response = tebex_request("GET", "/gift-cards")
 if response:
