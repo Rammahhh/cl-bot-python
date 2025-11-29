@@ -227,7 +227,7 @@ class ApplicationModal(discord.ui.Modal, title="Server Application"):
     def __init__(self, channel_id: Optional[int]):
         super().__init__()
         self.channel_id = channel_id
-        self.ign = discord.ui.TextInput(label="Minecraft IGN Meow1", placeholder="Your in-game name", max_length=32)
+        self.ign = discord.ui.TextInput(label="Minecraft IGN", placeholder="Your in-game name", max_length=32)
         self.age = discord.ui.TextInput(label="Age", placeholder="18", required=False, max_length=3)
         self.timezone = discord.ui.TextInput(label="Timezone", placeholder="e.g. UTC, EST", required=False, max_length=32)
         self.reason = discord.ui.TextInput(label="Why do you want to join?", style=discord.TextStyle.paragraph, max_length=500)
