@@ -402,6 +402,20 @@ class ApplicationModalPart2(discord.ui.Modal, title="Server Application (Part 2/
             )
 
 
+class ContinueApplicationView(discord.ui.View):
+    def __init__(self, part1_data: Dict[str, str], channel_id: Optional[int], server_name: str):
+        super().__init__(timeout=300)
+        self.part1_data = part1_data
+        self.channel_id = channel_id
+        self.server_name = server_name
+
+    @discord.ui.button(label="Continue to Part 2", style=discord.ButtonStyle.primary)
+    async def continue_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.send_modal(
+            ApplicationModalPart2(self.part1_data, self.channel_id, self.server_name)
+        )
+
+
 class ApplicationModal(discord.ui.Modal, title="Server Application (Part 1/2)"):
     def __init__(self, channel_id: Optional[int], server_name: str):
         super().__init__()
@@ -424,8 +438,11 @@ class ApplicationModal(discord.ui.Modal, title="Server Application (Part 1/2)"):
             "experience": self.experience.value
         }
         
-        await interaction.response.send_modal(
-            ApplicationModalPart2(part1_data, self.channel_id, self.server_name)
+        view = ContinueApplicationView(part1_data, self.channel_id, self.server_name)
+        await interaction.response.send_message(
+            "Part 1 received! Please click the button below to complete the final step.",
+            view=view,
+            ephemeral=True
         )
 
 class ServerSelectionSelect(discord.ui.Select):
