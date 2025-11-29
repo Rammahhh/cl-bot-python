@@ -269,11 +269,22 @@ class ApplicationReviewView(discord.ui.View):
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.success, custom_id="app_accept")
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         guild = interaction.guild
-        member = guild.get_member(self.applicant_id)
+        logging.info(f"Attempting to accept application for User ID: {self.applicant_id} in Guild: {guild.name} ({guild.id})")
         
+        member = guild.get_member(self.applicant_id)
         if not member:
-            await interaction.response.send_message("Applicant is no longer in the server.", ephemeral=True)
-            return
+            logging.warning(f"User {self.applicant_id} not found in cache. Fetching...")
+            try:
+                member = await guild.fetch_member(self.applicant_id)
+                logging.info(f"User {self.applicant_id} successfully fetched from API.")
+            except discord.NotFound:
+                logging.error(f"User {self.applicant_id} NOT FOUND via API.")
+                await interaction.response.send_message(f"Error: User {self.applicant_id} not found in server.", ephemeral=True)
+                return
+            except discord.HTTPException as e:
+                logging.error(f"HTTP Exception fetching user {self.applicant_id}: {e}")
+                await interaction.response.send_message(f"Failed to fetch member: {e}", ephemeral=True)
+                return
 
         # Assign Roles
         roles_to_add = [ROLE_HELPER, ROLE_STAFF]
@@ -313,13 +324,18 @@ class ApplicationReviewView(discord.ui.View):
         guild = interaction.guild
         member = guild.get_member(self.applicant_id)
         if not member:
-             # Even if member left, we might want to just mark it declined locally
-             embed = interaction.message.embeds[0]
-             embed.color = 0xE74C3C
-             embed.add_field(name="Status", value=f"Declined by {interaction.user.mention} (User left server)", inline=False)
-             await interaction.message.edit(embed=embed, view=None)
-             await interaction.response.send_message("Application declined (User not found).", ephemeral=True)
-             return
+            try:
+                member = await guild.fetch_member(self.applicant_id)
+            except discord.NotFound:
+                 # Even if member left, we might want to just mark it declined locally
+                 embed = interaction.message.embeds[0]
+                 embed.color = 0xE74C3C
+                 embed.add_field(name="Status", value=f"Declined by {interaction.user.mention} (User left server)", inline=False)
+                 await interaction.message.edit(embed=embed, view=None)
+                 await interaction.response.send_message("Application declined (User not found).", ephemeral=True)
+                 return
+            except Exception:
+                 pass
 
         await interaction.response.send_modal(DeclineModal(member, interaction.message))
 
@@ -572,6 +588,7 @@ def main() -> None:
     logging.info("Ready to serve slash command for mods: %s", ", ".join(f"{m['slug']} (id={m['id']})" for m in monitors))
 
     intents = discord.Intents.default()
+    intents.members = True
     client = discord.Client(intents=intents)
     tree = app_commands.CommandTree(client)
 
@@ -609,6 +626,9 @@ def main() -> None:
     async def on_ready() -> None:
         await tree.sync()
         logging.info("Bot connected as %s", client.user)
+        logging.info(f"Connected to {len(client.guilds)} guilds.")
+        for g in client.guilds:
+            logging.info(f"Guild: {g.name} (ID: {g.id}) - Members: {g.member_count}")
         if ptero_client_key and ptero_channel_id:
             client.loop.create_task(pterodactyl_activity_loop())
         elif not ptero_client_key:
