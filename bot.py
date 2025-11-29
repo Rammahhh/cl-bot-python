@@ -264,7 +264,7 @@ class ApplicationModal(discord.ui.Modal, title="Server Application"):
         try:
             channel = interaction.client.get_channel(self.channel_id) or await interaction.client.fetch_channel(self.channel_id)
             await channel.send(embed=embed)
-            await interaction.response.send_message("Application submitted!", ephemeral=True)
+            await interaction.response.send_message("Application submitted!f", ephemeral=True)
         except Exception as exc:  # noqa: BLE001
             logging.error("Failed to send application embed: %s", exc)
             await interaction.response.send_message(
