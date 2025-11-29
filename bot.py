@@ -340,18 +340,18 @@ class ApplicationReviewView(discord.ui.View):
         await interaction.response.send_modal(DeclineModal(member, interaction.message))
 
 
-class ApplicationModal(discord.ui.Modal, title="Server Application"):
-    def __init__(self, channel_id: Optional[int], server_name: str):
+class ApplicationModalPart2(discord.ui.Modal, title="Server Application (Part 2/2)"):
+    def __init__(self, part1_data: Dict[str, str], channel_id: Optional[int], server_name: str):
         super().__init__()
+        self.part1_data = part1_data
         self.channel_id = channel_id
         self.server_name = server_name
-        self.ign = discord.ui.TextInput(label="Minecraft IGN", placeholder="Your in-game name", max_length=32)
-        self.age = discord.ui.TextInput(label="Age", placeholder="18", required=False, max_length=3)
-        self.timezone = discord.ui.TextInput(label="Timezone", placeholder="e.g. UTC, EST", required=False, max_length=32)
-        self.reason = discord.ui.TextInput(label="Why should we accept you? (2 sentences)", style=discord.TextStyle.paragraph, max_length=500)
-        self.experience = discord.ui.TextInput(label="What do you bring to the team?", style=discord.TextStyle.paragraph, required=False, max_length=500)
-        for input_field in (self.ign, self.age, self.timezone, self.reason, self.experience):
-            self.add_item(input_field)
+        
+        self.past_experience = discord.ui.TextInput(label="Past experiences", style=discord.TextStyle.paragraph, required=False, max_length=500)
+        self.plugin_knowledge = discord.ui.TextInput(label="Knowledge of Luck Perms PEX Essentials etc", style=discord.TextStyle.paragraph, required=False, max_length=500)
+        
+        self.add_item(self.past_experience)
+        self.add_item(self.plugin_knowledge)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         embed = discord.Embed(
@@ -359,14 +359,24 @@ class ApplicationModal(discord.ui.Modal, title="Server Application"):
             color=0x9B59B6,
             timestamp=datetime.now(timezone.utc),
         )
-        embed.add_field(name="IGN", value=self.ign.value or "N/A", inline=True)
-        if self.age.value:
-            embed.add_field(name="Age", value=self.age.value, inline=True)
-        if self.timezone.value:
-            embed.add_field(name="Timezone", value=self.timezone.value, inline=True)
-        embed.add_field(name="Why should we accept you?", value=self.reason.value or "N/A", inline=False)
-        if self.experience.value:
-            embed.add_field(name="What do you bring to the team?", value=self.experience.value, inline=False)
+        
+        # Part 1 Fields
+        embed.add_field(name="IGN", value=self.part1_data.get("ign", "N/A"), inline=True)
+        if self.part1_data.get("age"):
+            embed.add_field(name="Age", value=self.part1_data["age"], inline=True)
+        if self.part1_data.get("timezone"):
+            embed.add_field(name="Timezone", value=self.part1_data["timezone"], inline=True)
+        
+        embed.add_field(name="Why should we accept you?", value=self.part1_data.get("reason", "N/A"), inline=False)
+        if self.part1_data.get("experience"):
+            embed.add_field(name="What do you bring to the team?", value=self.part1_data["experience"], inline=False)
+            
+        # Part 2 Fields
+        if self.past_experience.value:
+            embed.add_field(name="Past experiences", value=self.past_experience.value, inline=False)
+        if self.plugin_knowledge.value:
+            embed.add_field(name="Plugin Knowledge", value=self.plugin_knowledge.value, inline=False)
+
         embed.set_author(
             name=f"{interaction.user} ({interaction.user.id})",
             icon_url=getattr(interaction.user.display_avatar, "url", None),
@@ -383,13 +393,40 @@ class ApplicationModal(discord.ui.Modal, title="Server Application"):
             channel = interaction.client.get_channel(self.channel_id) or await interaction.client.fetch_channel(self.channel_id)
             view = ApplicationReviewView(interaction.user.id, self.server_name)
             await channel.send(embed=embed, view=view)
-            await interaction.response.send_message("Application submitted!", ephemeral=True)
+            await interaction.response.send_message("Application submitted successfully!", ephemeral=True)
         except Exception as exc:  # noqa: BLE001
             logging.error("Failed to send application embed: %s", exc)
             await interaction.response.send_message(
                 "Could not deliver application. Please try again later.",
                 ephemeral=True,
             )
+
+
+class ApplicationModal(discord.ui.Modal, title="Server Application (Part 1/2)"):
+    def __init__(self, channel_id: Optional[int], server_name: str):
+        super().__init__()
+        self.channel_id = channel_id
+        self.server_name = server_name
+        self.ign = discord.ui.TextInput(label="Minecraft IGN", placeholder="Your in-game name", max_length=32)
+        self.age = discord.ui.TextInput(label="Age", placeholder="18", required=False, max_length=3)
+        self.timezone = discord.ui.TextInput(label="Timezone", placeholder="e.g. UTC, EST", required=False, max_length=32)
+        self.reason = discord.ui.TextInput(label="Why should we accept you? (2 sentences)", style=discord.TextStyle.paragraph, max_length=500)
+        self.experience = discord.ui.TextInput(label="What do you bring to the team?", style=discord.TextStyle.paragraph, required=False, max_length=500)
+        for input_field in (self.ign, self.age, self.timezone, self.reason, self.experience):
+            self.add_item(input_field)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        part1_data = {
+            "ign": self.ign.value,
+            "age": self.age.value,
+            "timezone": self.timezone.value,
+            "reason": self.reason.value,
+            "experience": self.experience.value
+        }
+        
+        await interaction.response.send_modal(
+            ApplicationModalPart2(part1_data, self.channel_id, self.server_name)
+        )
 
 class ServerSelectionSelect(discord.ui.Select):
     def __init__(self, channel_id: Optional[int]):
