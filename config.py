@@ -1,6 +1,7 @@
 import os
+import json
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 # Constants
 BASE_URL = "https://api.curseforge.com/v1"
@@ -61,3 +62,26 @@ def env_list(key: str) -> List[str]:
     if not raw:
         return []
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def resolve_state_path() -> Path:
+    raw = os.getenv(STATE_FILE_ENV)
+    path = Path(raw).expanduser() if raw else DEFAULT_STATE_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def load_state(path: Optional[Path] = None) -> Dict[str, Any]:
+    target = path or resolve_state_path()
+    if not target.exists():
+        return {}
+    try:
+        payload = json.loads(target.read_text())
+        return payload if isinstance(payload, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def save_state(state: Dict[str, Any], path: Optional[Path] = None) -> None:
+    target = path or resolve_state_path()
+    target.write_text(json.dumps(state, indent=2))
