@@ -571,6 +571,11 @@ def main() -> None:
         app_commands.Choice(name="GTNH", value="GTNH"),
     ])
     async def migrate(interaction: discord.Interaction, server: app_commands.Choice[str], total_in_usd: float) -> None:
+        allowed_role_id = 1442244395452862465
+        if not isinstance(interaction.user, discord.Member) or not any(role.id == allowed_role_id for role in interaction.user.roles):
+            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+            return
+
         target_channel_id = 1443397300910030919
         
         # Defer response to avoid timeout
