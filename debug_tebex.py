@@ -6,7 +6,7 @@ import json
 # Credentials provided by user
 PROJECT_ID = "1661236"
 PRIVATE_KEY = "0a1NU1Exp9EGpMso1bt8xc7rfmLuOfW9"
-PUBLIC_TOKEN = "zltg-8c50a30c5d0a7e6f72ff87d7fec5c26adc261043"
+PUBLIC_TOKEN = "e0f99f3572b07712ea7fe5dedd244f2daee4310a"
 
 def debug_request(url, headers, method="GET", data=None):
     print(f"Requesting: {method} {url}")
