@@ -530,13 +530,19 @@ def main() -> None:
         await interaction.response.send_modal(modal)
 
     # Tebex Integration
-    TEBEX_API_KEY = os.getenv("TEBEX_API_KEY", "70e1713be7f71470e2be2bde46c26e801b5b72ef")
+    TEBEX_KEYS = {
+        "ATM": os.getenv("TEBEX_KEY_ATM", "70e1713be7f71470e2be2bde46c26e801b5b72ef"),
+        "Nomi": os.getenv("TEBEX_KEY_NOMI", "5d3d300fcf193f18056036314b97ad512f62403d"),
+        "Inf": os.getenv("TEBEX_KEY_INF", "6588413650593f03c3b22429fcef5c0cd1220270"),
+        "SB4": os.getenv("TEBEX_KEY_SB4", "c1d2ba326510667c2603c4d574bc3cb422bd15f2"),
+        "GTNH": os.getenv("TEBEX_KEY_GTNH", "1f10722992c938f360a0605488c03cf42b10d260"),
+    }
     TEBEX_BASE_URL = "https://plugin.tebex.io"
 
-    def tebex_request(method: str, endpoint: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def tebex_request(api_key: str, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = f"{TEBEX_BASE_URL}{endpoint}"
         headers = {
-            "X-Tebex-Secret": TEBEX_API_KEY,
+            "X-Tebex-Secret": api_key,
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
@@ -553,31 +559,38 @@ def main() -> None:
             raise
 
     @tree.command(name="migrate", description="Generate a Tebex gift card for migration.")
-    @app_commands.describe(total_in_usd="The total value in USD for the gift card.")
-    async def migrate(interaction: discord.Interaction, total_in_usd: float) -> None:
+    @app_commands.describe(
+        server="The server to generate the gift card for.",
+        total_in_usd="The total value in USD for the gift card."
+    )
+    @app_commands.choices(server=[
+        app_commands.Choice(name="ATM", value="ATM"),
+        app_commands.Choice(name="Nomi", value="Nomi"),
+        app_commands.Choice(name="Inf", value="Inf"),
+        app_commands.Choice(name="SB4", value="SB4"),
+        app_commands.Choice(name="GTNH", value="GTNH"),
+    ])
+    async def migrate(interaction: discord.Interaction, server: app_commands.Choice[str], total_in_usd: float) -> None:
         target_channel_id = 1443397300910030919
         
         # Defer response to avoid timeout
         await interaction.response.defer(ephemeral=True)
 
+        api_key = TEBEX_KEYS.get(server.value)
+        if not api_key:
+             await interaction.followup.send(f"Configuration error: No API key found for {server.name}.", ephemeral=True)
+             return
+
         try:
             # Create Gift Card via Tebex API
-            # Endpoint: POST /gift-cards
-            # Note: The actual endpoint might vary, assuming /gift-cards based on standard structure.
-            # If this fails, we might need to check specific Tebex plugin docs.
-            # Using 'note' to track it.
             payload = {
                 "amount": total_in_usd,
                 "note": f"Migration for {interaction.user} ({interaction.user.id})"
             }
             
-            # NOTE: Tebex Plugin API for Gift Cards might be /gift-cards or /coupons with type.
-            # Let's try /gift-cards first.
-            response = await asyncio.to_thread(tebex_request, "POST", "/gift-cards", payload)
+            response = await asyncio.to_thread(tebex_request, api_key, "POST", "/gift-cards", payload)
             
             if not response or "data" not in response:
-                 # Some endpoints return the object directly, some wrapped in data.
-                 # Let's handle both or inspect.
                  gift_card = response.get("data", response)
             else:
                  gift_card = response["data"]
@@ -588,14 +601,19 @@ def main() -> None:
 
             # Create Embed
             embed = discord.Embed(
-                title="Migration Gift Card Generated",
-                description=f"A new gift card has been generated for migration.",
+                title=f"Migration Gift Card ({server.name})",
+                description=(
+                    "Hello your rank has been moved over to store credit, login into our store and purchase a new Premium rank, "
+                    "please use this code to use your balance:\n\n"
+                    f"```\n{code}\n```\n"
+                    "During checkout there will be an option for Apply Coupons & Gift Cards enter the code above to use your balance."
+                ),
                 color=0xF1C40F, # Gold color
                 timestamp=datetime.now(timezone.utc)
             )
+            embed.set_image(url="https://cdn.discordapp.com/attachments/1443912118314205196/1443933287486849154/image.png?ex=692c30aa&is=692adf2a&hm=354fb4a3b0f88cb00e1ea172d24cf1625640737e4cc2cfeace4b3eeeedae4517&")
             embed.add_field(name="Amount", value=f"${total_in_usd:.2f} USD", inline=True)
-            embed.add_field(name="Code", value=f"`{code}`", inline=True)
-            embed.add_field(name="Generated By", value=interaction.user.mention, inline=False)
+            embed.add_field(name="Generated By", value=interaction.user.mention, inline=True)
             embed.set_footer(text="Tebex Migration")
 
             # Send to target channel
