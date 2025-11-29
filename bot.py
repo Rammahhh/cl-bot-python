@@ -27,7 +27,6 @@ class PackBot(commands.Bot):
             "cogs.applications",
             "cogs.migration",
             "cogs.modpacks",
-            "cogs.pterodactyl",
         ]
         
         for ext in initial_extensions:
