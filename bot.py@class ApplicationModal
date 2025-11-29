@@ -1,0 +1,48 @@
+class ApplicationModal(discord.ui.Modal, title="Server Application"):
+    def __init__(self, channel_id: Optional[int]):
+        super().__init__()
+        self.channel_id = channel_id
+        self.ign = discord.ui.TextInput(label="Minecraft IGN", placeholder="Your in-game name", max_length=32)
+        self.age = discord.ui.TextInput(label="Age", placeholder="18", required=False, max_length=3)
+        self.timezone = discord.ui.TextInput(label="Timezone", placeholder="e.g. UTC, EST", required=False, max_length=32)
+        self.reason = discord.ui.TextInput(label="Why do you want to join?", style=discord.TextStyle.paragraph, max_length=500)
+        self.experience = discord.ui.TextInput(label="Relevant experience", style=discord.TextStyle.paragraph, required=False, max_length=500)
+        for input_field in (self.ign, self.age, self.timezone, self.reason, self.experience):
+            self.add_item(input_field)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        embed = discord.Embed(
+            title="New Application",
+            color=0x9B59B6,
+            timestamp=datetime.now(timezone.utc),
+        )
+        embed.add_field(name="IGN", value=self.ign.value or "N/A", inline=True)
+        if self.age.value:
+            embed.add_field(name="Age", value=self.age.value, inline=True)
+        if self.timezone.value:
+            embed.add_field(name="Timezone", value=self.timezone.value, inline=True)
+        embed.add_field(name="Reason", value=self.reason.value or "N/A", inline=False)
+        if self.experience.value:
+            embed.add_field(name="Experience", value=self.experience.value, inline=False)
+        embed.set_author(
+            name=f"{interaction.user} ({interaction.user.id})",
+            icon_url=getattr(interaction.user.display_avatar, "url", discord.Embed.Empty),
+        )
+
+        if not self.channel_id:
+            await interaction.response.send_message(
+                "Thanks! However, no application channel is configured—please notify an admin.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            channel = interaction.client.get_channel(self.channel_id) or await interaction.client.fetch_channel(self.channel_id)
+            await channel.send(embed=embed)
+            await interaction.response.send_message("Application submitted!", ephemeral=True)
+        except Exception as exc:  # noqa: BLE001
+            logging.error("Failed to send application embed: %s", exc)
+            await interaction.response.send_message(
+                "Could not deliver application. Please try again later.",
+                ephemeral=True,
+            )
