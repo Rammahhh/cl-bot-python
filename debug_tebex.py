@@ -31,7 +31,7 @@ print("--- Tebex Key Debugger ---")
 # 1. Test as Game Server Key (Plugin API)
 print("\n[1] Testing as Game Server Key (https://plugin.tebex.io)...")
 headers_plugin = {
-    "X-Tebex-Secret": PRIVATE_KEY,
+    "X-Tebex-Secret": TEBEX_API_KEY,
     "Content-Type": "application/json",
     "User-Agent": "TebexMigrateBot/1.0"
 }
