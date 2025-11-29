@@ -251,7 +251,7 @@ class ApplicationModal(discord.ui.Modal, title="Server Application"):
             embed.add_field(name="Experience", value=self.experience.value, inline=False)
         embed.set_author(
             name=f"{interaction.user} ({interaction.user.id})",
-            icon_url=getattr(interaction.user.display_avatar, "url", discord.Embed.Empty),
+            icon_url=getattr(interaction.user.display_avatar, "url", None),
         )
 
         if not self.channel_id:
