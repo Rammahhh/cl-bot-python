@@ -75,7 +75,10 @@ class Staff(commands.Cog):
             else:
                  await interaction.followup.send(f"Nickname updated successfully.", ephemeral=True)
         else:
-            await interaction.followup.send(f"Failed to sync: {msg}", ephemeral=True)
+            response = f"Failed to sync: {msg}"
+            if msg == "Skipped (Protected Role)":
+                 response += "\n\n**Note:** You are a protected user. If you intended to sync ALL staff members, please use the `/staffsyncall` command."
+            await interaction.followup.send(response, ephemeral=True)
 
     @app_commands.command(name="staffsyncall", description="Sync all staff nicknames (Admin only).")
     async def staffsyncall(self, interaction: discord.Interaction) -> None:
