@@ -12,6 +12,21 @@ DEFAULT_MOD_SLUG = "ftb-stoneblock-4"
 STATE_FILE_ENV = "STATE_FILE"
 DEFAULT_STATE_FILE = Path.home() / ".packbot_state.json"
 
+def load_dotenv(path: Path = Path(".env")) -> None:
+    """Lightweight .env loader that sets env vars only if they are missing."""
+    if not path.exists():
+        return
+
+    for raw_line in path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
+
+# Load environment variables immediately on import
+load_dotenv()
+
 # Role Configuration
 ROLE_HELPER = 1442244395431628831
 ROLE_STAFF = 1442244395431628830
@@ -55,19 +70,6 @@ TEBEX_KEYS = {
     "GTNH": os.getenv("TEBEX_KEY_GTNH", "1f10722992c938f360a0605488c03cf42b10d260"),
 }
 TEBEX_BASE_URL = "https://plugin.tebex.io"
-
-
-def load_dotenv(path: Path = Path(".env")) -> None:
-    """Lightweight .env loader that sets env vars only if they are missing."""
-    if not path.exists():
-        return
-
-    for raw_line in path.read_text().splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip())
 
 
 def get_env_var(key: str, *, default: Optional[str] = None, required: bool = False) -> str:
