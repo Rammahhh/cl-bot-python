@@ -47,7 +47,6 @@ class Forums(commands.Cog):
 
         logging.info("Starting IPS Group Sync...")
         
-        # 1. Fetch existing groups
         response = await self.ips_request("GET", "core/groups")
         if not response:
             return "Failed to fetch existing groups from IPS."
@@ -60,30 +59,27 @@ class Forums(commands.Cog):
         
         existing_names = {g["name"].lower() for g in existing_groups if "name" in g}
         
-        created_count = 0
-        failed_count = 0
+        missing_groups = []
         
-        # 2. Iterate and Create
+        # 2. Iterate and Check
         for server_name in SERVER_ROLES.keys():
             target_group_name = f"{server_name} Staff"
             
             if target_group_name.lower() in existing_names:
-                logging.info(f"IPS Group '{target_group_name}' already exists.")
+                logging.info(f"IPS Group '{target_group_name}' exists.")
                 continue
 
-            logging.info(f"Creating IPS Group '{target_group_name}'...")
-            
-            create_response = await self.ips_request("POST", "core/groups", data={"name": target_group_name})
-            
-            if create_response:
-                logging.info(f"Successfully created IPS Group: {target_group_name}")
-                created_count += 1
-            else:
-                logging.error(f"Failed to create IPS Group: {target_group_name}")
-                failed_count += 1
+            logging.warning(f"IPS Group '{target_group_name}' is MISSING.")
+            missing_groups.append(target_group_name)
 
         logging.info("IPS Group Sync Complete.")
-        return f"Sync Complete. Created: {created_count}, Failed: {failed_count}"
+        
+        if missing_groups:
+            msg = "**Sync Complete.**\n\n**Missing Groups** (Please create these manually in IPS AdminCP):\n"
+            msg += "\n".join(f"- {g}" for g in missing_groups)
+            return msg
+        else:
+            return "Sync Complete. All groups exist."
 
     from discord import app_commands
     import discord
