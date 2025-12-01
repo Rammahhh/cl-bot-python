@@ -140,11 +140,10 @@ class Forums(commands.Cog):
         
         logging.info(f"Updating user {user_id} groups to: {current_secondary}")
         
-        # Try sending as JSON to ensure structure is preserved if API supports it
-        # But existing code uses 'data'. Let's stick to 'data' but maybe format it?
-        # Actually, let's try just logging first.
+        # Try comma-separated string, which is common for IPS APIs
+        payload = {"secondaryGroups": ",".join(map(str, current_secondary))}
         
-        response = await self.ips_request("POST", f"core/members/{user_id}", data={"secondaryGroups": current_secondary})
+        response = await self.ips_request("POST", f"core/members/{user_id}", data=payload)
         
         logging.info(f"Update response for {user_id}: {json.dumps(response)}")
         
