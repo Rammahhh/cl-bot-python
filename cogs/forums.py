@@ -140,10 +140,24 @@ class Forums(commands.Cog):
         
         logging.info(f"Updating user {user_id} groups to: {current_secondary}")
         
-        # Try comma-separated string, which is common for IPS APIs
-        payload = {"secondaryGroups": ",".join(map(str, current_secondary))}
+        # Try array syntax which is sometimes required by PHP-based APIs
+        # We need to send multiple values for the same key 'secondaryGroups[]'
+        # aiohttp supports this if we pass a list of tuples or a MultiDict
         
-        response = await self.ips_request("POST", f"core/members/{user_id}", data=payload)
+        data = []
+        if not current_secondary:
+             # If empty, we might need to send an empty string or something to clear it?
+             # Or just not send it? But we want to ADD.
+             # If we are adding, current_secondary has at least one item.
+             pass
+             
+        for gid in current_secondary:
+            data.append(("secondaryGroups[]", str(gid)))
+            
+        # If we just pass a dict with a list, aiohttp might not format it as key[]
+        # So let's try the list of tuples approach
+        
+        response = await self.ips_request("POST", f"core/members/{user_id}", data=data)
         
         logging.info(f"Update response for {user_id}: {json.dumps(response)}")
         
