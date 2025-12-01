@@ -42,6 +42,10 @@ SKIP_SYNC_ROLES = [
     1442244395452862464,
 ]
 
+# IPS Integration
+IPS_API_URL = os.getenv("IPS_API_URL")
+IPS_API_KEY = os.getenv("IPS_API_KEY")
+
 # Tebex Integration
 TEBEX_KEYS = {
     "ATM": os.getenv("TEBEX_KEY_ATM", "70e1713be7f71470e2be2bde46c26e801b5b72ef"),

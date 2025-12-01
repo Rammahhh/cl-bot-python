@@ -28,6 +28,7 @@ class PackBot(commands.Bot):
             "cogs.migration",
             "cogs.modpacks",
             "cogs.staff",
+            "cogs.forums",
         ]
         
         for ext in initial_extensions:
