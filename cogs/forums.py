@@ -124,8 +124,15 @@ class Forums(commands.Cog):
             return False
             
         current_secondary = user_data.get("secondaryGroups", [])
-        # Ensure it's a list of ints
-        current_secondary = [int(g) for g in current_secondary]
+        # Ensure it's a list of ints. API might return objects.
+        # Log shows: "secondaryGroups": [{"id": 10, ...}]
+        parsed_secondary = []
+        for g in current_secondary:
+            if isinstance(g, dict):
+                parsed_secondary.append(int(g.get("id", 0)))
+            else:
+                parsed_secondary.append(int(g))
+        current_secondary = parsed_secondary
         
         if group_id in current_secondary:
             return True # Already in group
@@ -163,7 +170,15 @@ class Forums(commands.Cog):
         
         # Verify if update actually happened
         if response and "secondaryGroups" in response:
-            new_groups = [int(g) for g in response["secondaryGroups"]]
+            # secondaryGroups can be a list of dicts (objects) or ints depending on endpoint/version
+            # Log shows: "secondaryGroups": [{"id": 10, "name": "...", ...}]
+            new_groups = []
+            for g in response["secondaryGroups"]:
+                if isinstance(g, dict):
+                    new_groups.append(int(g.get("id", 0)))
+                else:
+                    new_groups.append(int(g))
+                    
             if group_id in new_groups:
                 return True
             else:
