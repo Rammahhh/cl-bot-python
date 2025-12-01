@@ -39,8 +39,15 @@ class PackBot(commands.Bot):
                 logging.exception(f"Failed to load extension {ext}")
 
         # Sync Slash Commands
-        await self.tree.sync()
-        logging.info("Synced slash commands.")
+        from config import GUILD_ID
+        if GUILD_ID:
+            guild = discord.Object(id=GUILD_ID)
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            logging.info(f"Synced slash commands to Guild ID: {GUILD_ID} (Instant)")
+        else:
+            await self.tree.sync()
+            logging.info("Synced slash commands globally (Up to 1 hour delay).")
 
     async def on_ready(self):
         logging.info(f"Bot connected as {self.user}")
