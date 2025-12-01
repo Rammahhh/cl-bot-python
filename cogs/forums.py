@@ -40,22 +40,18 @@ class Forums(commands.Cog):
             logging.error(f"IPS Request Failed: {e}")
             return {}
 
-    async def sync_groups(self):
+    async def sync_groups(self) -> str:
         await self.bot.wait_until_ready()
         if not IPS_API_URL or not IPS_API_KEY:
-            return
+            return "IPS configuration missing."
 
         logging.info("Starting IPS Group Sync...")
         
         # 1. Fetch existing groups
-        # IPS API pagination might be needed, but for now let's assume one page or just check the first page.
-        # /core/groups usually returns a list.
         response = await self.ips_request("GET", "core/groups")
         if not response:
-            return
+            return "Failed to fetch existing groups from IPS."
 
-        # IPS API structure for groups list: {"page": 1, "results": [...]} or just [...] depending on version/endpoint
-        # Let's handle both just in case, though standard IPS 4 REST is usually wrapped in results for lists.
         existing_groups = []
         if "results" in response:
             existing_groups = response["results"]
@@ -63,6 +59,9 @@ class Forums(commands.Cog):
             existing_groups = response
         
         existing_names = {g["name"].lower() for g in existing_groups if "name" in g}
+        
+        created_count = 0
+        failed_count = 0
         
         # 2. Iterate and Create
         for server_name in SERVER_ROLES.keys():
@@ -74,19 +73,34 @@ class Forums(commands.Cog):
 
             logging.info(f"Creating IPS Group '{target_group_name}'...")
             
-            # Create Group
-            # Endpoint: POST /core/groups
-            # Payload: {"name": "Group Name"}
-            # Note: IPS API might require more fields or might not support creation via this endpoint directly 
-            # if it's not fully exposed. But we proceed as per plan.
             create_response = await self.ips_request("POST", "core/groups", data={"name": target_group_name})
             
             if create_response:
                 logging.info(f"Successfully created IPS Group: {target_group_name}")
+                created_count += 1
             else:
                 logging.error(f"Failed to create IPS Group: {target_group_name}")
+                failed_count += 1
 
         logging.info("IPS Group Sync Complete.")
+        return f"Sync Complete. Created: {created_count}, Failed: {failed_count}"
+
+    from discord import app_commands
+    import discord
+
+    @app_commands.command(name="syncforums", description="Manually trigger IPS group synchronization.")
+    async def syncforums(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        
+        # Optional: Check for admin permissions
+        from config import ROLE_ADMIN
+        has_admin = any(role.id == ROLE_ADMIN for role in interaction.user.roles)
+        if not has_admin:
+            await interaction.followup.send("You do not have permission to use this command.", ephemeral=True)
+            return
+
+        status = await self.sync_groups()
+        await interaction.followup.send(status, ephemeral=True)
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Forums(bot))
