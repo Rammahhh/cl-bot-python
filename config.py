@@ -26,6 +26,14 @@ SERVER_ROLES = {
     "GregTech New Horizon": 1442244395360456751,
 }
 
+ROLE_TAGS = {
+    1442244395327033460: "[SB4]",
+    1442244395360456750: "[IE]",
+    1442244395343544455: "[NomiFactory]",
+    1442244395360456747: "[SF2.5]",
+    1442244395360456751: "[GTNH]",
+}
+
 # Tebex Integration
 TEBEX_KEYS = {
     "ATM": os.getenv("TEBEX_KEY_ATM", "70e1713be7f71470e2be2bde46c26e801b5b72ef"),
