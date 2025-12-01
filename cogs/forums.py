@@ -2,6 +2,8 @@ import logging
 import aiohttp
 import asyncio
 import json
+import discord
+from discord import app_commands
 from discord.ext import commands
 from typing import Optional, Dict, Any, List
 
@@ -210,9 +212,6 @@ class Forums(commands.Cog):
                 failed_count += 1
                 
         return f"User Sync Complete.\nSynced: {synced_count}\nNot Found: {not_found_count}\nFailed: {failed_count}"
-
-    from discord import app_commands
-    import discord
 
     @app_commands.command(name="syncforums", description="Manually trigger IPS group and user synchronization.")
     async def syncforums(self, interaction: discord.Interaction) -> None:
