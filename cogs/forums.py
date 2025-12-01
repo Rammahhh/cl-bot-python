@@ -133,9 +133,9 @@ class Forums(commands.Cog):
         current_secondary.append(group_id)
         
         # 2. Update user
-        # Endpoint: PUT /core/members/{id}
+        # Endpoint: POST /core/members/{id}
         # Payload: {"secondaryGroups": [id, id, ...]}
-        response = await self.ips_request("PUT", f"core/members/{user_id}", data={"secondaryGroups": current_secondary})
+        response = await self.ips_request("POST", f"core/members/{user_id}", data={"secondaryGroups": current_secondary})
         return bool(response)
 
     async def sync_users(self, interaction: discord.Interaction) -> str:
