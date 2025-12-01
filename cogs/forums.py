@@ -135,7 +135,28 @@ class Forums(commands.Cog):
         # 2. Update user
         # Endpoint: POST /core/members/{id}
         # Payload: {"secondaryGroups": [id, id, ...]}
+        # IPS API often expects comma-separated string for arrays in form-data if not using array syntax
+        # Let's try sending as a list first, but log it.
+        
+        logging.info(f"Updating user {user_id} groups to: {current_secondary}")
+        
+        # Try sending as JSON to ensure structure is preserved if API supports it
+        # But existing code uses 'data'. Let's stick to 'data' but maybe format it?
+        # Actually, let's try just logging first.
+        
         response = await self.ips_request("POST", f"core/members/{user_id}", data={"secondaryGroups": current_secondary})
+        
+        logging.info(f"Update response for {user_id}: {json.dumps(response)}")
+        
+        # Verify if update actually happened
+        if response and "secondaryGroups" in response:
+            new_groups = [int(g) for g in response["secondaryGroups"]]
+            if group_id in new_groups:
+                return True
+            else:
+                logging.error(f"API returned success but group {group_id} is NOT in new groups: {new_groups}")
+                return False
+                
         return bool(response)
 
     async def sync_users(self, interaction: discord.Interaction) -> str:
