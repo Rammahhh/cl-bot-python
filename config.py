@@ -109,8 +109,8 @@ IPS_API_URL = os.getenv("IPS_API_URL")
 IPS_API_KEY = os.getenv("IPS_API_KEY")
 
 # CL1 Forum Integration
-CL1_API_URL = os.getenv("CL1_API_URL", "https://forum.craftersland.net/api/")
-CL1_API_KEY = os.getenv("CL1_API_KEY", "b688354afd6b1d0f4450cc8bc139643e")
+CL1_API_URL = os.getenv("CL1_API_URL", "https://forums.craftersland.org/api/")
+CL1_API_KEY = os.getenv("CL1_API_KEY", "e0daa5899c013eb52c8d20be830fdf4f")
 
 # Discord Configuration
 GUILD_ID = os.getenv("GUILD_ID")
