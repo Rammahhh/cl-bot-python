@@ -282,5 +282,130 @@ class Forums(commands.Cog):
         
         await interaction.followup.send(user_status, ephemeral=True)
 
+    # ------------------------------------------------------------------
+    # CL1 Forum Integration (Secondary Forum)
+    # ------------------------------------------------------------------
+
+    async def cl1_request(self, method: str, endpoint: str, data: Optional[dict] = None) -> Optional[dict]:
+        """Makes a request to the CL1 API."""
+        from config import CL1_API_URL, CL1_API_KEY
+        if not CL1_API_KEY:
+            logging.error("CL1_API_KEY is not set.")
+            return None
+            
+        url = f"{CL1_API_URL.rstrip('/')}/{endpoint}"
+        auth = aiohttp.BasicAuth(CL1_API_KEY, "")
+        
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.request(method, url, auth=auth, data=data) as response:
+                    if response.status != 200:
+                        logging.error(f"CL1 API Error ({response.status}): {await response.text()}")
+                        return None
+                    return await response.json()
+            except Exception as e:
+                logging.error(f"CL1 Request Failed: {e}")
+                return None
+
+    @app_commands.command(name="getgroups", description="List available groups from the CL1 forum.")
+    async def getgroups(self, interaction: discord.Interaction):
+        """Fetches and lists groups from the CL1 forum."""
+        from config import ROLE_ADMIN
+        has_admin = any(role.id == ROLE_ADMIN for role in interaction.user.roles)
+        if not has_admin:
+            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+        
+        response = await self.cl1_request("GET", "core/groups")
+        if not response or "results" not in response:
+            await interaction.followup.send("Failed to fetch groups from CL1 API.")
+            return
+
+        groups = response["results"]
+        # Format as a simple list
+        msg = "**CL1 Forum Groups**\n"
+        for group in groups:
+            msg += f"`{group['id']}`: {group['name']}\n"
+            
+        # Handle long messages
+        if len(msg) > 2000:
+            msg = msg[:1990] + "..."
+            
+        await interaction.followup.send(msg)
+
+    async def group_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[int]]:
+        """Autocomplete for CL1 groups."""
+        if not hasattr(self, "_cl1_group_cache"):
+            self._cl1_group_cache = []
+            self._cl1_cache_time = 0
+            
+        import time
+        if time.time() - getattr(self, "_cl1_cache_time", 0) > 300: # 5 min cache
+             response = await self.cl1_request("GET", "core/groups")
+             if response and "results" in response:
+                 self._cl1_group_cache = response["results"]
+                 self._cl1_cache_time = time.time()
+        
+        choices = []
+        for group in self._cl1_group_cache:
+            if current.lower() in group["name"].lower():
+                choices.append(app_commands.Choice(name=group["name"], value=group["id"]))
+                if len(choices) >= 25:
+                    break
+        return choices
+
+    @app_commands.command(name="makemanager", description="Assign a group to a user on the CL1 forum.")
+    @app_commands.autocomplete(group=group_autocomplete)
+    @app_commands.describe(username="The forum username", group="The group to assign")
+    async def makemanager(self, interaction: discord.Interaction, username: str, group: int):
+        """Assigns a group to a user on CL1."""
+        from config import ROLE_ADMIN
+        has_admin = any(role.id == ROLE_ADMIN for role in interaction.user.roles)
+        if not has_admin:
+            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+        
+        # 1. Find User
+        search_response = await self.cl1_request("GET", f"core/members?name={username}")
+        
+        if not search_response or "results" not in search_response or not search_response["results"]:
+            await interaction.followup.send(f"User '{username}' not found on CL1 forum.")
+            return
+            
+        user = search_response["results"][0]
+        user_id = user["id"]
+        current_secondary = user.get("secondaryGroups", [])
+        
+        parsed_secondary = []
+        for g in current_secondary:
+            if isinstance(g, dict):
+                parsed_secondary.append(int(g.get("id", 0)))
+            else:
+                parsed_secondary.append(int(g))
+        current_secondary = parsed_secondary
+
+        if group in current_secondary:
+            await interaction.followup.send(f"User '{user['name']}' is already in group {group}.")
+            return
+
+        current_secondary.append(group)
+        
+        # 2. Update User
+        # Use array syntax as learned from previous task
+        data = []
+        for gid in current_secondary:
+            data.append(("secondaryGroups[]", str(gid)))
+            
+        update_response = await self.cl1_request("POST", f"core/members/{user_id}", data=data)
+        
+        if update_response:
+             await interaction.followup.send(f"Successfully added group {group} to user '{user['name']}' on CL1.")
+        else:
+             await interaction.followup.send(f"Failed to update user '{user['name']}' on CL1.")
+
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Forums(bot))

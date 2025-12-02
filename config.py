@@ -108,6 +108,10 @@ SKIP_SYNC_ROLES = [
 IPS_API_URL = os.getenv("IPS_API_URL")
 IPS_API_KEY = os.getenv("IPS_API_KEY")
 
+# CL1 Forum Integration
+CL1_API_URL = os.getenv("CL1_API_URL", "https://forum.craftersland.net/api/")
+CL1_API_KEY = os.getenv("CL1_API_KEY", "b688354afd6b1d0f4450cc8bc139643e")
+
 # Discord Configuration
 GUILD_ID = os.getenv("GUILD_ID")
 
