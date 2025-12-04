@@ -45,10 +45,9 @@ class Pterodactyl(commands.Cog):
             url = f"{url}?{query}"
 
         headers = {
-            "Accept": "application/json",
+            "Accept": "Application/vnd.pterodactyl.v1+json",
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "User-Agent": "PterodactylBot/1.0"
         }
         
         body = None
