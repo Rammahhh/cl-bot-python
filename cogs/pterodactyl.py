@@ -4,6 +4,7 @@ import json
 import os
 import secrets
 import string
+import urllib.error
 import discord
 from discord.ext import commands, tasks
 from typing import Optional, Dict, Any, List
@@ -55,9 +56,14 @@ class Pterodactyl(commands.Cog):
             body = json.dumps(data).encode("utf-8")
 
         req = request.Request(url, data=body, headers=headers, method=method)
-        with request.urlopen(req, timeout=30) as resp:
-            data = resp.read()
-            return json.loads(data.decode("utf-8"))
+        try:
+            with request.urlopen(req, timeout=30) as resp:
+                data = resp.read()
+                return json.loads(data.decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8", errors="replace")
+            logging.error(f"Pterodactyl API Error {e.code} on {url}: {error_body}")
+            raise
 
     def ptero_client_request(self, path: str, *, api_key: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         query = parse.urlencode(params or {})
@@ -310,7 +316,8 @@ class Pterodactyl(commands.Cog):
                 "/users",
                 api_key=PTERO_ADMIN_API_KEY,
                 method="POST",
-                data=payload
+                data=payload,
+                base_url=PTERO_PANEL_URL
             )
             
             if "errors" in response:
