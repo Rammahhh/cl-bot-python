@@ -310,8 +310,7 @@ class Pterodactyl(commands.Cog):
                 "/users",
                 api_key=PTERO_ADMIN_API_KEY,
                 method="POST",
-                data=payload,
-                base_url=PTERO_PANEL_URL
+                data=payload
             )
             
             if "errors" in response:
