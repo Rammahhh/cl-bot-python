@@ -109,7 +109,7 @@ IPS_API_URL = os.getenv("IPS_API_URL")
 IPS_API_KEY = os.getenv("IPS_API_KEY")
 
 # Pterodactyl Integration
-PTERO_ADMIN_API_KEY = "ptla_AwOppAjQGNIq2W65VectXTLnHagKmhS6e1cOUVhCZUD"
+PTERO_ADMIN_API_KEY = "ptla_wMg5DkDPQEYETzYIkTYxma4HXz6leOKZViIrjw9DEbb"
 PTERO_PANEL_URL = "https://mc.craftersland.org"
 
 # CL1 Forum Integration
