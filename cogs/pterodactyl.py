@@ -63,7 +63,8 @@ class Pterodactyl(commands.Cog):
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8", errors="replace")
             logging.error(f"Pterodactyl API Error {e.code} on {url}: {error_body}")
-            raise
+            # Raise with body so it appears in Discord message
+            raise Exception(f"HTTP {e.code}: {error_body[:1800]}")
 
     def ptero_client_request(self, path: str, *, api_key: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         query = parse.urlencode(params or {})
