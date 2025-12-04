@@ -2,18 +2,20 @@ import logging
 import asyncio
 import json
 import os
+import secrets
+import string
 import discord
 from discord.ext import commands, tasks
 from typing import Optional, Dict, Any, List
 from urllib import request, parse
 
-from config import load_state, save_state, env_list
+from config import load_state, save_state, env_list, ROLE_ADMIN, PTERO_ADMIN_API_KEY, PTERO_PANEL_URL
 from utils import parse_time
 
 class Pterodactyl(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.ptero_base_url = os.getenv("PTERO_BASE_URL", "https://panel.craftersland.org")
+        self.ptero_base_url = PTERO_PANEL_URL
         self.ptero_app_key = os.getenv("PTERO_APPLICATION_API_KEY")
         self.ptero_client_key = os.getenv("PTERO_CLIENT_API_KEY")
         self.ptero_server_identifiers = env_list("PTERO_SERVER_IDENTIFIERS")
@@ -35,7 +37,7 @@ class Pterodactyl(commands.Cog):
     def cog_unload(self):
         self.activity_loop.cancel()
 
-    def ptero_request(self, path: str, *, api_key: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def ptero_request(self, path: str, *, api_key: str, params: Optional[Dict[str, Any]] = None, method: str = "GET", data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         query = parse.urlencode(params or {})
         url = f"{self.ptero_base_url.rstrip('/')}/api/application{path}"
         if query:
@@ -44,8 +46,14 @@ class Pterodactyl(commands.Cog):
         headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
         }
-        req = request.Request(url, headers=headers, method="GET")
+        
+        body = None
+        if data is not None:
+            body = json.dumps(data).encode("utf-8")
+
+        req = request.Request(url, data=body, headers=headers, method=method)
         with request.urlopen(req, timeout=30) as resp:
             data = resp.read()
             return json.loads(data.decode("utf-8"))
@@ -272,6 +280,70 @@ class Pterodactyl(commands.Cog):
     @activity_loop.before_loop
     async def before_activity_loop(self):
         await self.bot.wait_until_ready()
+
+    @discord.app_commands.command(name="createadmin", description="Create a new admin user on the Pterodactyl panel")
+    @discord.app_commands.describe(username="The username for the new account", email="The email address for the new account")
+    @discord.app_commands.checks.has_role(ROLE_ADMIN)
+    async def create_admin(self, interaction: discord.Interaction, username: str, email: str):
+        await interaction.response.defer(ephemeral=True)
+        
+        # Generate password
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        password = ''.join(secrets.choice(alphabet) for i in range(16))
+        
+        # Create user payload
+        payload = {
+            "username": username,
+            "email": email,
+            "first_name": username,
+            "last_name": "Admin",
+            "password": password,
+            "root_admin": True,
+            "language": "en"
+        }
+        
+        try:
+            response = await asyncio.to_thread(
+                self.ptero_request,
+                "/users",
+                api_key=PTERO_ADMIN_API_KEY,
+                method="POST",
+                data=payload
+            )
+            
+            if "errors" in response:
+                errors = "\n".join([e.get("detail", "Unknown error") for e in response["errors"]])
+                await interaction.followup.send(f"Failed to create user:\n{errors}", ephemeral=True)
+                return
+            
+            # Check if object is user (success)
+            if response.get("object") != "user":
+                 # Fallback error handling if errors key missing but not success
+                 await interaction.followup.send(f"Unexpected response from Pterodactyl: {json.dumps(response)}", ephemeral=True)
+                 return
+
+            user_attr = response.get("attributes", {})
+            user_id = user_attr.get("id")
+            
+            embed = discord.Embed(title="Admin User Created", color=discord.Color.green())
+            embed.add_field(name="Panel URL", value=self.ptero_base_url, inline=False)
+            embed.add_field(name="Username", value=username, inline=True)
+            embed.add_field(name="Email", value=email, inline=True)
+            embed.add_field(name="Password", value=f"||{password}||", inline=False)
+            embed.set_footer(text=f"User ID: {user_id}")
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            logging.exception("Error creating admin user")
+            await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
+
+    @create_admin.error
+    async def create_admin_error(self, interaction: discord.Interaction, error):
+        if isinstance(error, discord.app_commands.MissingRole):
+            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"An error occurred: {str(error)}", ephemeral=True)
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Pterodactyl(bot))

@@ -108,6 +108,10 @@ SKIP_SYNC_ROLES = [
 IPS_API_URL = os.getenv("IPS_API_URL")
 IPS_API_KEY = os.getenv("IPS_API_KEY")
 
+# Pterodactyl Integration
+PTERO_ADMIN_API_KEY = "ptla_AwOppAjQGNIq2W65VectXTLnHagKmhS6e1cOUVhCZUD"
+PTERO_PANEL_URL = "https://mc.craftersland.org"
+
 # CL1 Forum Integration
 CL1_API_URL = os.getenv("CL1_API_URL", "https://forums.craftersland.org/api/")
 CL1_API_KEY = os.getenv("CL1_API_KEY", "e0daa5899c013eb52c8d20be830fdf4f")
