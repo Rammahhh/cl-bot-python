@@ -15,7 +15,7 @@ from utils import parse_time
 class Pterodactyl(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.ptero_base_url = PTERO_PANEL_URL
+        self.ptero_base_url = os.getenv("PTERO_BASE_URL", "https://panel.craftersland.org")
         self.ptero_app_key = os.getenv("PTERO_APPLICATION_API_KEY")
         self.ptero_client_key = os.getenv("PTERO_CLIENT_API_KEY")
         self.ptero_server_identifiers = env_list("PTERO_SERVER_IDENTIFIERS")
@@ -37,9 +37,10 @@ class Pterodactyl(commands.Cog):
     def cog_unload(self):
         self.activity_loop.cancel()
 
-    def ptero_request(self, path: str, *, api_key: str, params: Optional[Dict[str, Any]] = None, method: str = "GET", data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def ptero_request(self, path: str, *, api_key: str, params: Optional[Dict[str, Any]] = None, method: str = "GET", data: Optional[Dict[str, Any]] = None, base_url: Optional[str] = None) -> Dict[str, Any]:
         query = parse.urlencode(params or {})
-        url = f"{self.ptero_base_url.rstrip('/')}/api/application{path}"
+        target_base = base_url or self.ptero_base_url
+        url = f"{target_base.rstrip('/')}/api/application{path}"
         if query:
             url = f"{url}?{query}"
 
@@ -47,6 +48,7 @@ class Pterodactyl(commands.Cog):
             "Accept": "application/json",
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "PterodactylBot/1.0"
         }
         
         body = None
@@ -303,12 +305,14 @@ class Pterodactyl(commands.Cog):
         }
         
         try:
+            logging.info(f"Creating admin user on {PTERO_PANEL_URL} with username {username}")
             response = await asyncio.to_thread(
                 self.ptero_request,
                 "/users",
                 api_key=PTERO_ADMIN_API_KEY,
                 method="POST",
-                data=payload
+                data=payload,
+                base_url=PTERO_PANEL_URL
             )
             
             if "errors" in response:
@@ -326,7 +330,7 @@ class Pterodactyl(commands.Cog):
             user_id = user_attr.get("id")
             
             embed = discord.Embed(title="Admin User Created", color=discord.Color.green())
-            embed.add_field(name="Panel URL", value=self.ptero_base_url, inline=False)
+            embed.add_field(name="Panel URL", value=PTERO_PANEL_URL, inline=False)
             embed.add_field(name="Username", value=username, inline=True)
             embed.add_field(name="Email", value=email, inline=True)
             embed.add_field(name="Password", value=f"||{password}||", inline=False)
