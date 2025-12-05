@@ -13,6 +13,60 @@ from urllib import request, parse
 from config import load_state, save_state, env_list, ROLE_ADMIN, ROLE_SENIOR_ADMIN, PTERO_ADMIN_API_KEY, PTERO_PANEL_URL
 from utils import parse_time
 
+
+# Constants for Subuser Creation
+PTERO_CLIENT_API_KEY_SUBUSER = "ptlc_HYgu2jBfk1rGQloijWaQKONQsvdmyqAn7aMlVprs6D1"
+ROLE_SUBUSER_CREATOR = 1442244395431628834
+
+SERVER_UUIDS = {
+    "sb4": "e7fa3ad0",
+    "inf": "5fb1ba73",
+    "gtnh": "936b4133",
+    "atm10": "ad7a0275",
+    "nomi": "faa84f7a",
+}
+
+STAFF_ROLE_IDS = {
+    1442244395327033460: "sb4",
+    1442244395327033461: "atm10",
+    1442244395343544455: "nomi",
+    1442244395360456751: "gtnh",
+    1442244395360456750: "inf",
+}
+
+SUBUSER_PERMISSIONS = [
+    "control.console",
+    "control.start",
+    "control.stop",
+    "control.restart",
+    "user.create",
+    "user.read",
+    "user.update",
+    "user.delete",
+    "file.create",
+    "file.read",
+    "file.update",
+    "file.delete",
+    "file.archive",
+    "backup.create",
+    "backup.read",
+    "backup.delete",
+    "allocation.read",
+    "allocation.create",
+    "allocation.update",
+    "allocation.delete",
+    "startup.read",
+    "startup.update",
+    "database.create",
+    "database.read",
+    "database.update",
+    "database.delete",
+    "schedule.create",
+    "schedule.read",
+    "schedule.update",
+    "schedule.delete"
+]
+
 class Pterodactyl(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -452,55 +506,4 @@ async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Pterodactyl(bot))
 
 
-# Constants for Subuser Creation
-PTERO_CLIENT_API_KEY_SUBUSER = "ptlc_HYgu2jBfk1rGQloijWaQKONQsvdmyqAn7aMlVprs6D1"
-ROLE_SUBUSER_CREATOR = 1442244395431628834
 
-SERVER_UUIDS = {
-    "sb4": "e7fa3ad0",
-    "inf": "5fb1ba73",
-    "gtnh": "936b4133",
-    "atm10": "ad7a0275",
-    "nomi": "faa84f7a",
-}
-
-STAFF_ROLE_IDS = {
-    1442244395327033460: "sb4",
-    1442244395327033461: "atm10",
-    1442244395343544455: "nomi",
-    1442244395360456751: "gtnh",
-    1442244395360456750: "inf",
-}
-
-SUBUSER_PERMISSIONS = [
-    "control.console",
-    "control.start",
-    "control.stop",
-    "control.restart",
-    "user.create",
-    "user.read",
-    "user.update",
-    "user.delete",
-    "file.create",
-    "file.read",
-    "file.update",
-    "file.delete",
-    "file.archive",
-    "backup.create",
-    "backup.read",
-    "backup.delete",
-    "allocation.read",
-    "allocation.create",
-    "allocation.update",
-    "allocation.delete",
-    "startup.read",
-    "startup.update",
-    "database.create",
-    "database.read",
-    "database.update",
-    "database.delete",
-    "schedule.create",
-    "schedule.read",
-    "schedule.update",
-    "schedule.delete"
-]
