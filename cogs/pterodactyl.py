@@ -66,7 +66,7 @@ class Pterodactyl(commands.Cog):
             # Raise with body so it appears in Discord message
             raise Exception(f"HTTP {e.code}: {error_body[:1800]}")
 
-    def ptero_client_request(self, path: str, *, api_key: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def ptero_client_request(self, path: str, *, api_key: str, params: Optional[Dict[str, Any]] = None, method: str = "GET", data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         query = parse.urlencode(params or {})
         url = f"{self.ptero_base_url.rstrip('/')}/api/client{path}"
         if query:
@@ -75,8 +75,14 @@ class Pterodactyl(commands.Cog):
         headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
         }
-        req = request.Request(url, headers=headers, method="GET")
+        
+        body = None
+        if data is not None:
+            body = json.dumps(data).encode("utf-8")
+
+        req = request.Request(url, data=body, headers=headers, method=method)
         with request.urlopen(req, timeout=30) as resp:
             data = resp.read()
             return json.loads(data.decode("utf-8"))
@@ -355,5 +361,146 @@ class Pterodactyl(commands.Cog):
         else:
             await interaction.response.send_message(f"An error occurred: {str(error)}", ephemeral=True)
 
+    @discord.app_commands.command(name="panelregister", description="Create a subuser on the Pterodactyl panel based on staff roles")
+    @discord.app_commands.describe(username="The username for the new account")
+    @discord.app_commands.checks.has_role(ROLE_SUBUSER_CREATOR)
+    async def panel_register(self, interaction: discord.Interaction, username: str):
+        await interaction.response.defer(ephemeral=True)
+        
+        # Determine staff roles
+        target_servers = []
+        member = interaction.user
+        if not member:
+            await interaction.followup.send("Could not identify user.", ephemeral=True)
+            return
+
+        for role in member.roles:
+            if role.id in STAFF_ROLE_IDS:
+                target_servers.append(STAFF_ROLE_IDS[role.id])
+        
+        if not target_servers:
+            await interaction.followup.send("You do not have any recognized staff roles for panel access.", ephemeral=True)
+            return
+
+        # Generate credentials
+        email = f"{username}@cl.local"
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        password = ''.join(secrets.choice(alphabet) for i in range(16))
+        
+        results = []
+        
+        for server_key in target_servers:
+            server_uuid = SERVER_UUIDS.get(server_key)
+            if not server_uuid:
+                results.append(f"❌ **{server_key.upper()}**: Server UUID not configured.")
+                continue
+                
+            payload = {
+                "email": email,
+                "permissions": SUBUSER_PERMISSIONS
+            }
+            
+            try:
+                # We use the CLIENT API to add a subuser
+                # POST /api/client/servers/{server}/users
+                self.ptero_client_request(
+                    f"/servers/{server_uuid}/users",
+                    api_key=PTERO_CLIENT_API_KEY_SUBUSER,
+                    method="POST",
+                    data=payload
+                )
+                results.append(f"✅ **{server_key.upper()}**: Access granted.")
+            except Exception as e:
+                # Basic error parsing
+                msg = str(e)
+                if "HTTP 403" in msg:
+                    msg = "Forbidden (Check bot permisisons/limit)"
+                elif "HTTP 422" in msg:
+                    msg = "User already exists or invalid data"
+                results.append(f"⚠️ **{server_key.upper()}**: Failed - {msg}")
+
+        # Send DM
+        dm_embed = discord.Embed(title="Panel Access Created", description=f"Your panel account for **{username}** has been set up.", color=discord.Color.green())
+        dm_embed.add_field(name="Panel URL", value=PTERO_PANEL_URL, inline=False)
+        dm_embed.add_field(name="Username", value=email, inline=True)
+        dm_embed.add_field(name="Password", value=f"||{password}||", inline=True)
+        dm_embed.add_field(name="Access Summary", value="\n".join(results), inline=False)
+        dm_embed.set_footer(text="Please quit and restart your browser if cannot log in.")
+
+        try:
+            await member.send(embed=dm_embed)
+            dm_status = "Credentials sent via DM."
+        except discord.Forbidden:
+            dm_status = "Could not DM credentials. Please enable DMs."
+
+        # Reply to interaction
+        summary_embed = discord.Embed(title="Panel Registration Complete", color=discord.Color.blue())
+        summary_embed.add_field(name="User", value=f"{username} ({email})", inline=True)
+        summary_embed.add_field(name="Results", value="\n".join(results), inline=False)
+        summary_embed.set_footer(text=dm_status)
+        
+        await interaction.followup.send(embed=summary_embed, ephemeral=True)
+
+    @panel_register.error
+    async def panel_register_error(self, interaction: discord.Interaction, error):
+        if isinstance(error, discord.app_commands.MissingRole):
+             await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        else:
+             await interaction.response.send_message(f"An error occurred: {str(error)}", ephemeral=True)
+
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Pterodactyl(bot))
+
+
+# Constants for Subuser Creation
+PTERO_CLIENT_API_KEY_SUBUSER = "ptlc_HYgu2jBfk1rGQloijWaQKONQsvdmyqAn7aMlVprs6D1"
+ROLE_SUBUSER_CREATOR = 1442244395431628834
+
+SERVER_UUIDS = {
+    "sb4": "e7fa3ad0",
+    "inf": "5fb1ba73",
+    "gtnh": "936b4133",
+    "atm10": "ad7a0275",
+    "nomi": "faa84f7a",
+}
+
+STAFF_ROLE_IDS = {
+    1442244395327033460: "sb4",
+    1442244395327033461: "atm10",
+    1442244395343544455: "nomi",
+    1442244395360456751: "gtnh",
+    1442244395360456750: "inf",
+}
+
+SUBUSER_PERMISSIONS = [
+    "control.console",
+    "control.start",
+    "control.stop",
+    "control.restart",
+    "user.create",
+    "user.read",
+    "user.update",
+    "user.delete",
+    "file.create",
+    "file.read",
+    "file.update",
+    "file.delete",
+    "file.archive",
+    "backup.create",
+    "backup.read",
+    "backup.delete",
+    "allocation.read",
+    "allocation.create",
+    "allocation.update",
+    "allocation.delete",
+    "startup.read",
+    "startup.update",
+    "database.create",
+    "database.read",
+    "database.update",
+    "database.delete",
+    "schedule.create",
+    "schedule.read",
+    "schedule.update",
+    "schedule.delete"
+]
