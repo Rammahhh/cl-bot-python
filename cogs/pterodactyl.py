@@ -451,6 +451,32 @@ class Pterodactyl(commands.Cog):
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
         password = ''.join(secrets.choice(alphabet) for i in range(16))
         
+        # Create user via Application API first
+        user_payload = {
+            "username": username,
+            "email": email,
+            "first_name": username,
+            "last_name": "Staff",
+            "password": password,
+            "language": "en"
+        }
+
+        try:
+            logging.info(f"Creating user {username} via Application API")
+            await asyncio.to_thread(
+                self.ptero_request,
+                "/users",
+                api_key=PTERO_ADMIN_API_KEY,
+                method="POST",
+                data=user_payload,
+                base_url=PTERO_PANEL_URL
+            )
+        except Exception as e:
+            # If user already exists, we proceed.
+            # We can't easily check the error code without parsing the string message from our helper
+            # but usually it's 422 or similar.
+            logging.warning(f"User creation failed (likely exists): {e}")
+
         results = []
         
         for server_key in target_servers:
