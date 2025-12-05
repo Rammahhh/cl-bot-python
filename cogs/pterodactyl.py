@@ -126,6 +126,10 @@ class Pterodactyl(commands.Cog):
         if query:
             url = f"{url}?{query}"
 
+        # Debug logging
+        masked_key = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "INVALID_KEY_LENGTH"
+        logging.info(f"Ptero Client Req: {method} {url} | Key: {masked_key} | Data: {data}")
+
         headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {api_key}",
@@ -137,9 +141,15 @@ class Pterodactyl(commands.Cog):
             body = json.dumps(data).encode("utf-8")
 
         req = request.Request(url, data=body, headers=headers, method=method)
-        with request.urlopen(req, timeout=30) as resp:
-            data = resp.read()
-            return json.loads(data.decode("utf-8"))
+        try:
+            with request.urlopen(req, timeout=30) as resp:
+                data = resp.read()
+                logging.info(f"Ptero Client Resp: {resp.status} | Body: {data.decode('utf-8')[:200]}...")
+                return json.loads(data.decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")
+            logging.error(f"Ptero Client HTTP Error {e.code}: {err_body}")
+            raise
 
     def fetch_application_servers(self, api_key: str, *, per_page: int = 50) -> List[Dict[str, Any]]:
         servers: List[Dict[str, Any]] = []
