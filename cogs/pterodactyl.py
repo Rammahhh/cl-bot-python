@@ -451,31 +451,57 @@ class Pterodactyl(commands.Cog):
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
         password = ''.join(secrets.choice(alphabet) for i in range(16))
         
-        # Create user via Application API first
-        user_payload = {
-            "username": username,
-            "email": email,
-            "first_name": username,
-            "last_name": "Staff",
-            "password": password,
-            "language": "en"
-        }
-
+        # 1. Check if user exists via Application API
+        user_id = None
         try:
-            logging.info(f"Creating user {username} via Application API")
-            await asyncio.to_thread(
+            # Filter by email to see if user exists
+            # GET /api/application/users?filter[email]=...
+            search_response = await asyncio.to_thread(
                 self.ptero_request,
                 "/users",
                 api_key=PTERO_ADMIN_API_KEY,
-                method="POST",
-                data=user_payload,
+                method="GET",
+                params={"filter[email]": email},
                 base_url=PTERO_PANEL_URL
             )
+            data = search_response.get("data", [])
+            if data:
+                # User exists
+                attributes = data[0].get("attributes", {})
+                user_id = attributes.get("id")
+                existing_username = attributes.get("username")
+                logging.info(f"User {email} already exists (ID: {user_id}, Username: {existing_username})")
+                # We could optionally update the password here if requested, but for now we just use them.
+            else:
+                # 2. Create user if not exists
+                user_payload = {
+                    "username": username,
+                    "email": email,
+                    "first_name": username,
+                    "last_name": "Staff",
+                    "password": password,
+                    "language": "en"
+                }
+                logging.info(f"Creating user {username} via Application API")
+                create_response = await asyncio.to_thread(
+                    self.ptero_request,
+                    "/users",
+                    api_key=PTERO_ADMIN_API_KEY,
+                    method="POST",
+                    data=user_payload,
+                    base_url=PTERO_PANEL_URL
+                )
+                user_id = create_response.get("attributes", {}).get("id")
+                logging.info(f"User created successfully (ID: {user_id})")
+
         except Exception as e:
-            # If user already exists, we proceed.
-            # We can't easily check the error code without parsing the string message from our helper
-            # but usually it's 422 or similar.
-            logging.warning(f"User creation failed (likely exists): {e}")
+            logging.error(f"Failed to verify/create user: {e}")
+            await interaction.followup.send(f"❌ Failed to initialize user account: {e}", ephemeral=True)
+            return
+
+        if not user_id:
+            await interaction.followup.send("❌ Failed to retrieve User ID after creation.", ephemeral=True)
+            return
 
         results = []
         
@@ -507,6 +533,10 @@ class Pterodactyl(commands.Cog):
                     msg = "Forbidden (Check bot permisisons/limit)"
                 elif "HTTP 422" in msg:
                     msg = "User already exists or invalid data"
+                    # If user is already a subuser, this is fine.
+                    if "User already exists" in msg or "already a subuser" in msg:
+                         results.append(f"✅ **{server_key.upper()}**: Already has access.")
+                         continue
                 results.append(f"⚠️ **{server_key.upper()}**: Failed - {msg}")
 
         # Send DM
