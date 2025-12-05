@@ -131,7 +131,7 @@ class Pterodactyl(commands.Cog):
         logging.info(f"Ptero Client Req: {method} {url} | Key: {masked_key} | Data: {data}")
 
         headers = {
-            "Accept": "application/json",
+            "Accept": "Application/vnd.pterodactyl.v1+json",
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
