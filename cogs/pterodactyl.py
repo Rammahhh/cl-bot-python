@@ -10,7 +10,7 @@ from discord.ext import commands, tasks
 from typing import Optional, Dict, Any, List
 from urllib import request, parse
 
-from config import load_state, save_state, env_list, ROLE_ADMIN, PTERO_ADMIN_API_KEY, PTERO_PANEL_URL
+from config import load_state, save_state, env_list, ROLE_ADMIN, ROLE_SENIOR_ADMIN, PTERO_ADMIN_API_KEY, PTERO_PANEL_URL
 from utils import parse_time
 
 class Pterodactyl(commands.Cog):
@@ -291,7 +291,7 @@ class Pterodactyl(commands.Cog):
 
     @discord.app_commands.command(name="createadmin", description="Create a new admin user on the Pterodactyl panel")
     @discord.app_commands.describe(username="The username for the new account", email="The email address for the new account")
-    @discord.app_commands.checks.has_role(ROLE_ADMIN)
+    @discord.app_commands.checks.has_any_role(ROLE_ADMIN, ROLE_SENIOR_ADMIN)
     async def create_admin(self, interaction: discord.Interaction, username: str, email: str):
         await interaction.response.defer(ephemeral=True)
         
@@ -350,7 +350,7 @@ class Pterodactyl(commands.Cog):
 
     @create_admin.error
     async def create_admin_error(self, interaction: discord.Interaction, error):
-        if isinstance(error, discord.app_commands.MissingRole):
+        if isinstance(error, discord.app_commands.MissingAnyRole):
             await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
         else:
             await interaction.response.send_message(f"An error occurred: {str(error)}", ephemeral=True)
