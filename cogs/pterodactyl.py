@@ -70,7 +70,7 @@ SUBUSER_PERMISSIONS = [
 class Pterodactyl(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.ptero_base_url = os.getenv("PTERO_BASE_URL", "https://mc.craftersland.org")
+        self.ptero_base_url = PTERO_PANEL_URL
         self.ptero_app_key = os.getenv("PTERO_APPLICATION_API_KEY")
         self.ptero_client_key = os.getenv("PTERO_CLIENT_API_KEY")
         self.ptero_server_identifiers = env_list("PTERO_SERVER_IDENTIFIERS")
